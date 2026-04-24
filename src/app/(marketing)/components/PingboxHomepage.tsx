@@ -1,8 +1,27 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { C, F, FM, FS, icons } from './theme';
 import { BlockLibraryVisual } from './blocks';
+
+// ── Responsive hook ───────────────────────────────────────────────────────────
+
+function useMedia(query: string) {
+  const subscribe = (cb: () => void) => {
+    const mq = window.matchMedia(query);
+    mq.addEventListener('change', cb);
+    return () => mq.removeEventListener('change', cb);
+  };
+  const getSnapshot = () => window.matchMedia(query).matches;
+  const getServerSnapshot = () => false;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+function useResponsive() {
+  const isMobile = useMedia('(max-width: 767px)');
+  const isTablet = useMedia('(min-width: 768px) and (max-width: 1023px)');
+  return { isMobile, isTablet, isNarrow: isMobile || isTablet };
+}
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
@@ -62,49 +81,105 @@ function Chip({ children, bg = 'rgba(78,63,255,0.14)', color = '#D9955F' }: { ch
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { isNarrow } = useResponsive();
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', h);
     return () => window.removeEventListener('scroll', h);
   }, []);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileOpen]);
+  useEffect(() => { if (!isNarrow) setMobileOpen(false); }, [isNarrow]);
   const prods = [
     { label: 'Relay', desc: 'The AI storefront widget', icon: icons.layout, color: C.accent, softBg: C.accentSoft, href: '/relay' },
     { label: 'Engage', desc: 'Inbox + broadcast, one hub', icon: icons.broadcast, color: C.blue, softBg: C.blueSoft, href: '/engage' },
     { label: 'Intelligence', desc: 'Revenue attribution', icon: icons.chart, color: C.indigo, softBg: C.indigoSoft, href: '/intelligence' },
   ];
+  const navLinks = [
+    { label: 'Industries', href: '#industries' },
+    { label: 'For Teams', href: '/for/teams' },
+    { label: 'Customers', href: '/customers' },
+    { label: 'Pricing', href: '#pricing' },
+  ];
+  const barOpaque = scrolled || mobileOpen;
   return (
-    <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: scrolled ? 'rgba(250,248,245,0.85)' : 'transparent', backdropFilter: scrolled ? 'blur(16px) saturate(150%)' : 'none', borderBottom: scrolled ? `1px solid ${C.border}` : '1px solid transparent', transition: 'all 0.3s ease', padding: '0 24px' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-        <a href="/" aria-label="Pingbox home" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-          <img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: 32, width: 'auto', display: 'block' }} />
+    <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: barOpaque ? 'rgba(250,248,245,0.92)' : 'transparent', backdropFilter: barOpaque ? 'blur(16px) saturate(150%)' : 'none', borderBottom: barOpaque ? `1px solid ${C.border}` : '1px solid transparent', transition: 'all 0.3s ease', padding: isNarrow ? '0 16px' : '0 24px' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: isNarrow ? 56 : 64, gap: 12 }}>
+        <a href="/" aria-label="Pingbox home" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}>
+          <img src="/images/brand/logo.svg" alt="Pingbox" style={{ height: isNarrow ? 26 : 32, width: 'auto', display: 'block' }} />
         </a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          <div style={{ position: 'relative', height: 64, display: 'flex', alignItems: 'center' }} onMouseEnter={() => setProdOpen(true)} onMouseLeave={() => setProdOpen(false)}>
-            <span style={{ fontSize: 14, fontWeight: 500, color: C.t2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: F }}>Products <Ic d={icons.chevDown} size={13} /></span>
-            {prodOpen && (
-              <div style={{ position: 'absolute', top: 56, left: -24, background: '#fff', borderRadius: 14, boxShadow: '0 16px 48px rgba(10,10,10,0.12), 0 0 0 1px rgba(10,10,10,0.04)', padding: 6, minWidth: 280, animation: 'fadeDown 0.15s ease' }}>
-                {prods.map(p => (
-                  <a key={p.label} href={p.href} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10, textDecoration: 'none', color: C.ink, transition: 'background 0.12s' }} onMouseEnter={e => (e.currentTarget.style.background = C.surfaceAlt)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: p.softBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.color, flexShrink: 0 }}><Ic d={p.icon} size={17} /></div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, fontFamily: F }}>{p.label}</div>
-                      <div style={{ fontSize: 12, color: C.t3, fontFamily: F }}>{p.desc}</div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            )}
+        {!isNarrow && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+            <div style={{ position: 'relative', height: 64, display: 'flex', alignItems: 'center' }} onMouseEnter={() => setProdOpen(true)} onMouseLeave={() => setProdOpen(false)}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: C.t2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: F }}>Products <Ic d={icons.chevDown} size={13} /></span>
+              {prodOpen && (
+                <div style={{ position: 'absolute', top: 56, left: -24, background: '#fff', borderRadius: 14, boxShadow: '0 16px 48px rgba(10,10,10,0.12), 0 0 0 1px rgba(10,10,10,0.04)', padding: 6, minWidth: 280, animation: 'fadeDown 0.15s ease' }}>
+                  {prods.map(p => (
+                    <a key={p.label} href={p.href} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10, textDecoration: 'none', color: C.ink, transition: 'background 0.12s' }} onMouseEnter={e => (e.currentTarget.style.background = C.surfaceAlt)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: p.softBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.color, flexShrink: 0 }}><Ic d={p.icon} size={17} /></div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, fontFamily: F }}>{p.label}</div>
+                        <div style={{ fontSize: 12, color: C.t3, fontFamily: F }}>{p.desc}</div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            {navLinks.map(l => (
+              <a key={l.href} href={l.href} style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F }}>{l.label}</a>
+            ))}
           </div>
-          <a href="#industries" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F }}>Industries</a>
-          <a href="/for/teams" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F }}>For Teams</a>
-          <a href="/customers" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F }}>Customers</a>
-          <a href="#pricing" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F }}>Pricing</a>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <a href="/partner/login" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F, padding: '8px 14px' }}>Sign in</a>
-          <Btn href="/early-access" variant="primary" style={{ padding: '9px 18px', fontSize: 13.5, borderRadius: 8 }}>Start free</Btn>
-        </div>
+        )}
+        {!isNarrow ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a href="/partner/login" style={{ fontSize: 14, fontWeight: 500, color: C.t2, textDecoration: 'none', fontFamily: F, padding: '8px 14px' }}>Sign in</a>
+            <Btn href="/early-access" variant="primary" style={{ padding: '9px 18px', fontSize: 13.5, borderRadius: 8 }}>Start free</Btn>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Btn href="/early-access" variant="primary" style={{ padding: '8px 14px', fontSize: 12.5, borderRadius: 8 }}>Start free</Btn>
+            <button
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen(o => !o)}
+              style={{ width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.ink} strokeWidth="2" strokeLinecap="round">
+                {mobileOpen ? <><line x1="6" y1="6" x2="18" y2="18" /><line x1="6" y1="18" x2="18" y2="6" /></> : <><line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" /></>}
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
+      {isNarrow && mobileOpen && (
+        <div style={{ position: 'fixed', top: 56, left: 0, right: 0, bottom: 0, background: C.bg, overflowY: 'auto', animation: 'fadeDown 0.2s ease' }}>
+          <div style={{ padding: '16px 20px 40px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: C.t3, textTransform: 'uppercase', fontFamily: F, padding: '10px 4px 8px' }}>Products</div>
+            {prods.map(p => (
+              <a key={p.label} href={p.href} onClick={() => setMobileOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 4px', textDecoration: 'none', color: C.ink }}>
+                <div style={{ width: 38, height: 38, borderRadius: 9, background: p.softBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.color, flexShrink: 0 }}><Ic d={p.icon} size={18} /></div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: F }}>{p.label}</div>
+                  <div style={{ fontSize: 12.5, color: C.t3, fontFamily: F, marginTop: 1 }}>{p.desc}</div>
+                </div>
+              </a>
+            ))}
+            <div style={{ height: 1, background: C.border, margin: '14px 0 6px' }} />
+            {navLinks.map(l => (
+              <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)} style={{ display: 'block', fontSize: 16, fontWeight: 600, color: C.ink, textDecoration: 'none', fontFamily: F, padding: '14px 4px' }}>{l.label}</a>
+            ))}
+            <div style={{ height: 1, background: C.border, margin: '10px 0 16px' }} />
+            <a href="/partner/login" onClick={() => setMobileOpen(false)} style={{ display: 'block', fontSize: 16, fontWeight: 600, color: C.t2, textDecoration: 'none', fontFamily: F, padding: '10px 4px 16px' }}>Sign in</a>
+            <Btn href="/early-access" variant="accent" style={{ justifyContent: 'center', width: '100%', padding: '14px 20px', fontSize: 15 }}>Start free — 14 days</Btn>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -309,36 +384,37 @@ function HeroFloatCard({ position }: { position: string }) {
 }
 
 function Hero() {
+  const { isMobile, isNarrow } = useResponsive();
   return (
-    <section style={{ paddingTop: 120, paddingBottom: 90, background: C.bg, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', top: 0, right: 0, width: 620, height: 620, background: `radial-gradient(circle at center, rgba(78,63,255,0.08), transparent 60%)`, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${C.border} 1px, transparent 1px), linear-gradient(90deg, ${C.border} 1px, transparent 1px)`, backgroundSize: '56px 56px', opacity: 0.4, pointerEvents: 'none', maskImage: 'radial-gradient(ellipse 900px 500px at 50% 40%, black 20%, transparent 80%)' }} />
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', position: 'relative' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 60, alignItems: 'center' }}>
+    <section style={{ paddingTop: isMobile ? 88 : 120, paddingBottom: isMobile ? 56 : 90, background: C.bg, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 620, height: 620, maxWidth: '120vw', background: `radial-gradient(circle at center, rgba(78,63,255,0.08), transparent 60%)`, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${C.border} 1px, transparent 1px), linear-gradient(90deg, ${C.border} 1px, transparent 1px)`, backgroundSize: isMobile ? '40px 40px' : '56px 56px', opacity: 0.4, pointerEvents: 'none', maskImage: 'radial-gradient(ellipse 900px 500px at 50% 40%, black 20%, transparent 80%)' }} />
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '0 20px' : '0 24px', position: 'relative' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1.1fr 1fr', gap: isMobile ? 40 : 60, alignItems: 'center' }}>
           <div>
             <FadeIn>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px 5px 5px', background: '#fff', borderRadius: 100, border: `1px solid ${C.border}`, marginBottom: 28, boxShadow: '0 1px 2px rgba(10,10,10,0.03)' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: C.accent, padding: '3px 10px', borderRadius: 100, letterSpacing: '0.08em' }}>NEW</span>
-                <span style={{ fontSize: 13, fontWeight: 500, color: C.t2, fontFamily: F }}>Conversational lead conversion — built for service brands</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px 5px 5px', background: '#fff', borderRadius: 100, border: `1px solid ${C.border}`, marginBottom: isMobile ? 20 : 28, boxShadow: '0 1px 2px rgba(10,10,10,0.03)', maxWidth: '100%' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: C.accent, padding: '3px 10px', borderRadius: 100, letterSpacing: '0.08em', flexShrink: 0 }}>NEW</span>
+                <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 500, color: C.t2, fontFamily: F, whiteSpace: isMobile ? 'normal' : 'nowrap', overflow: 'hidden' }}>{isMobile ? 'Conversational lead conversion' : 'Conversational lead conversion — built for service brands'}</span>
                 <Ic d={icons.arrow} size={12} stroke={C.t3} />
               </div>
             </FadeIn>
             <FadeIn delay={0.05}>
-              <h1 style={{ fontFamily: F, fontSize: 72, fontWeight: 800, lineHeight: 0.95, color: C.ink, letterSpacing: '-0.05em', margin: '0 0 28px' }}>
+              <h1 style={{ fontFamily: F, fontSize: isMobile ? 40 : isNarrow ? 56 : 72, fontWeight: 800, lineHeight: isMobile ? 1.02 : 0.95, color: C.ink, letterSpacing: '-0.045em', margin: isMobile ? '0 0 20px' : '0 0 28px' }}>
                 Turn every inquiry<br />into a <span style={{ fontFamily: FS, fontStyle: 'italic', fontWeight: 500, color: C.accent, letterSpacing: '-0.03em' }}>decision</span>,<br />not just a <span style={{ fontFamily: FS, fontStyle: 'italic', fontWeight: 500, letterSpacing: '-0.03em', color: C.t2 }}>reply</span>.
               </h1>
             </FadeIn>
             <FadeIn delay={0.1}>
-              <p style={{ fontSize: 19, lineHeight: 1.55, color: C.t2, maxWidth: 540, margin: '0 0 36px', fontFamily: F, fontWeight: 400 }}>
-                You spend thousands on ads to drive traffic. Most of it leaks. Pingbox catches every inbound — from your site, social, or messaging — and converts it with tappable <span style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 8px', background: C.accentSoft, color: C.accent, borderRadius: 5, fontWeight: 700, fontSize: 16, fontFamily: F, border: `1px solid rgba(78,63,255,0.2)` }}>service cards</span>, booking flows, and quotes.
+              <p style={{ fontSize: isMobile ? 16 : 19, lineHeight: 1.55, color: C.t2, maxWidth: 540, margin: isMobile ? '0 0 28px' : '0 0 36px', fontFamily: F, fontWeight: 400 }}>
+                You spend thousands on ads to drive traffic. Most of it leaks. Pingbox catches every inbound — from your site, social, or messaging — and converts it with tappable <span style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 8px', background: C.accentSoft, color: C.accent, borderRadius: 5, fontWeight: 700, fontSize: isMobile ? 14 : 16, fontFamily: F, border: `1px solid rgba(78,63,255,0.2)` }}>service cards</span>, booking flows, and quotes.
               </p>
             </FadeIn>
             <FadeIn delay={0.14}>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
-                <Btn href="/early-access" variant="accent" style={{ padding: '15px 28px', fontSize: 15 }}>Start free — 14 days <Ic d={icons.arrow} size={15} /></Btn>
-                <Btn href="#how" variant="secondary" style={{ padding: '15px 28px', fontSize: 15 }}>See how it works</Btn>
+                <Btn href="/early-access" variant="accent" style={{ padding: isMobile ? '14px 22px' : '15px 28px', fontSize: 15, flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}>Start free — 14 days <Ic d={icons.arrow} size={15} /></Btn>
+                <Btn href="#how" variant="secondary" style={{ padding: isMobile ? '14px 22px' : '15px 28px', fontSize: 15, flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}>See how it works</Btn>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 22, fontSize: 13, color: C.t3, fontFamily: F, fontWeight: 500, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 14 : 22, fontSize: isMobile ? 12 : 13, color: C.t3, fontFamily: F, fontWeight: 500, flexWrap: 'wrap' }}>
                 {['No credit card','Live in 5 minutes','Cancel anytime'].map(t => (
                   <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic d={icons.check} size={13} stroke={C.accent} sw={2.5} />{t}</div>
                 ))}
@@ -346,10 +422,10 @@ function Hero() {
             </FadeIn>
           </div>
           <FadeIn delay={0.18}>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', maxWidth: isMobile ? 320 : undefined, margin: isNarrow ? '0 auto' : undefined }}>
               <RelayPhone />
-              <HeroFloatCard position="topLeft" />
-              <HeroFloatCard position="bottomRight" />
+              {!isNarrow && <HeroFloatCard position="topLeft" />}
+              {!isNarrow && <HeroFloatCard position="bottomRight" />}
             </div>
           </FadeIn>
         </div>
@@ -361,10 +437,11 @@ function Hero() {
 // ── TrustBar ──────────────────────────────────────────────────────────────────
 
 function TrustBar() {
+  const { isMobile } = useResponsive();
   return (
-    <section style={{ padding: '28px 24px 56px', background: C.bg, borderTop: `1px solid ${C.border}`, marginTop: -40, position: 'relative', zIndex: 2 }}>
-      <div style={{ maxWidth: 1000, margin: '0 auto', background: '#fff', borderRadius: 14, padding: '20px 28px', border: `1px solid ${C.border}`, boxShadow: '0 4px 12px rgba(10,10,10,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+    <section style={{ padding: isMobile ? '16px 16px 40px' : '28px 24px 56px', background: C.bg, borderTop: `1px solid ${C.border}`, marginTop: isMobile ? -24 : -40, position: 'relative', zIndex: 2 }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', background: '#fff', borderRadius: 14, padding: isMobile ? '16px 18px' : '20px 28px', border: `1px solid ${C.border}`, boxShadow: '0 4px 12px rgba(10,10,10,0.04)' }}>
+        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: isMobile ? 14 : 24, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: C.ink, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Ic d={icons.grid} size={16} stroke={C.accent} sw={2} />
@@ -392,46 +469,48 @@ function TrustBar() {
 // ── ProblemStats ──────────────────────────────────────────────────────────────
 
 function ProblemStats() {
+  const { isMobile, isTablet } = useResponsive();
+  const cols = isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1.2fr 1fr 1fr 1fr';
   return (
-    <section style={{ padding: '60px 24px 100px', background: C.bg }}>
+    <section style={{ padding: isMobile ? '40px 20px 64px' : '60px 24px 100px', background: C.bg }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <FadeIn>
-          <div style={{ maxWidth: 720, marginBottom: 60 }}>
+          <div style={{ maxWidth: 720, marginBottom: isMobile ? 32 : 60 }}>
             <Eyebrow color={C.red}>The leak</Eyebrow>
-            <h2 style={{ fontFamily: F, fontSize: 48, fontWeight: 800, color: C.ink, letterSpacing: '-0.04em', margin: '0 0 16px', lineHeight: 1.02 }}>
+            <h2 style={{ fontFamily: F, fontSize: isMobile ? 32 : 48, fontWeight: 800, color: C.ink, letterSpacing: '-0.04em', margin: '0 0 16px', lineHeight: 1.04 }}>
               You&apos;re paying for clicks.<br />Then <span style={{ fontFamily: FS, fontStyle: 'italic', fontWeight: 500, letterSpacing: '-0.025em' }}>losing</span> them at the door.
             </h2>
-            <p style={{ fontSize: 17, color: C.t2, fontFamily: F, lineHeight: 1.6, margin: 0, maxWidth: 600 }}>Every visitor that hits your site cost you money to acquire — Google Ads, Meta, SEO, referrals. Most of them never convert. You&apos;re not under-spending on traffic. You&apos;re under-converting it.</p>
+            <p style={{ fontSize: isMobile ? 15 : 17, color: C.t2, fontFamily: F, lineHeight: 1.6, margin: 0, maxWidth: 600 }}>Every visitor that hits your site cost you money to acquire — Google Ads, Meta, SEO, referrals. Most of them never convert. You&apos;re not under-spending on traffic. You&apos;re under-converting it.</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.08}>
           <div style={{ background: '#fff', borderRadius: 18, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ padding: '28px 32px', background: C.surfaceAlt }}>
+            <div style={{ display: 'grid', gridTemplateColumns: cols, borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ padding: isMobile ? '22px 22px' : '28px 32px', background: C.surfaceAlt, gridColumn: isTablet ? '1 / -1' : undefined }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: C.t3, letterSpacing: '0.1em', fontFamily: F, marginBottom: 4 }}>THE LEAK, IN DOLLARS</div>
-                <div style={{ fontFamily: F, fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.025em', lineHeight: 1.1 }}>For every $10K in<br />ad spend, you waste</div>
-                <div style={{ fontFamily: F, fontSize: 42, fontWeight: 800, color: C.accent, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 10 }}>~$7.3K</div>
+                <div style={{ fontFamily: F, fontSize: isMobile ? 22 : 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.025em', lineHeight: 1.1 }}>For every $10K in ad spend, you waste</div>
+                <div style={{ fontFamily: F, fontSize: isMobile ? 38 : 42, fontWeight: 800, color: C.accent, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 10 }}>~$7.3K</div>
                 <div style={{ fontSize: 12, color: C.t3, fontFamily: F, marginTop: 6, lineHeight: 1.5 }}>on traffic that asked, didn&apos;t get a real answer, and bounced.</div>
               </div>
               {[{value:'73%',label:'of website inquiries never become qualified leads',src:'Drift / Marketo benchmarks',color:C.red},{value:'5%',label:'average chat-to-booking conversion across service businesses',src:'HubSpot 2025',color:C.amber},{value:'3-5x',label:'lift on conversion when replies are interactive UI, not text',src:'Pingbox beta data',color:C.accent}].map((s,i) => (
-                <div key={i} style={{ padding: '28px 28px 24px', borderLeft: `1px solid ${C.border}` }}>
-                  <div style={{ fontFamily: F, fontSize: 44, fontWeight: 800, color: s.color, lineHeight: 1, letterSpacing: '-0.04em', marginBottom: 10 }}>{s.value}</div>
+                <div key={i} style={{ padding: isMobile ? '20px 22px' : '28px 28px 24px', borderLeft: isMobile ? 'none' : `1px solid ${C.border}`, borderTop: isMobile ? `1px solid ${C.borderLight}` : 'none' }}>
+                  <div style={{ fontFamily: F, fontSize: isMobile ? 36 : 44, fontWeight: 800, color: s.color, lineHeight: 1, letterSpacing: '-0.04em', marginBottom: 10 }}>{s.value}</div>
                   <div style={{ fontSize: 13, color: C.t2, fontFamily: F, lineHeight: 1.45, fontWeight: 500, marginBottom: 6 }}>{s.label}</div>
                   <div style={{ fontSize: 10.5, color: C.t4, fontFamily: F, fontStyle: 'italic' }}>{s.src}</div>
                 </div>
               ))}
             </div>
-            <div style={{ padding: '20px 32px', background: C.ink, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+            <div style={{ padding: isMobile ? '18px 22px' : '20px 32px', background: C.ink, color: '#fff', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(78,63,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent }}>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(78,63,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent, flexShrink: 0 }}>
                   <Ic d={icons.lightning} size={18} sw={2} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: F }}>Pingbox closes the leak. Same traffic. More conversions.</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontFamily: F, marginTop: 2 }}>Most operators see Pingbox pay for itself within their first ad cycle.</div>
+                  <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: '#fff', fontFamily: F, lineHeight: 1.3 }}>Pingbox closes the leak. Same traffic. More conversions.</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontFamily: F, marginTop: 2, lineHeight: 1.4 }}>Most operators see Pingbox pay for itself within their first ad cycle.</div>
                 </div>
               </div>
-              <Btn href="/tools/leak-calculator" variant="accent" style={{ padding: '10px 20px', fontSize: 13 }}>Calculate your leak <Ic d={icons.arrow} size={13} /></Btn>
+              <Btn href="/tools/leak-calculator" variant="accent" style={{ padding: '10px 20px', fontSize: 13, justifyContent: 'center' }}>Calculate your leak <Ic d={icons.arrow} size={13} /></Btn>
             </div>
           </div>
         </FadeIn>
@@ -454,7 +533,7 @@ function UploadVisual() {
     {name:'FAQ & Policies.docx',size:'156 KB',pages:'8 pages',progress:stage>=3?78:0},
   ];
   return (
-    <div style={{ background:'#fff', borderRadius:14, padding:24, border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
+    <div style={{ background:'#fff', borderRadius:14, padding:'20px 18px', border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div><div style={{ fontSize:14, fontWeight:700, color:C.ink, fontFamily:F }}>Knowledge base</div><div style={{ fontSize:12, color:C.t3, fontFamily:F, marginTop:2 }}>3 files · 3,396 words indexed</div></div>
         <div style={{ padding:'6px 12px', borderRadius:8, background:C.accent, fontSize:11, fontWeight:700, color:'#fff', fontFamily:F, display:'flex', alignItems:'center', gap:4 }}><Ic d={icons.file} size={12} sw={2.5} />Add files</div>
@@ -494,7 +573,7 @@ function ConnectVisual() {
     {name:'Web Chat Widget',sub:'Embedded on airprohvac.com',color:C.indigo,icon:icons.mouse},
   ];
   return (
-    <div style={{ background:'#fff', borderRadius:14, padding:24, border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
+    <div style={{ background:'#fff', borderRadius:14, padding:'20px 18px', border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div><div style={{ fontSize:14, fontWeight:700, color:C.ink, fontFamily:F }}>Channels</div><div style={{ fontSize:12, color:C.t3, fontFamily:F, marginTop:2 }}>4 connected · 1 brain, everywhere</div></div>
         <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 11px', borderRadius:100, background:C.greenSoft }}>
@@ -537,7 +616,7 @@ function LiveVisual() {
     events.forEach((e,i) => { setTimeout(() => setStream(s=>[...s,e].slice(-5)), i*800+200); });
   }, []);
   return (
-    <div style={{ background:'#fff', borderRadius:14, padding:24, border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
+    <div style={{ background:'#fff', borderRadius:14, padding:'20px 18px', border:`1px solid ${C.border}`, maxWidth:580, margin:'0 auto', boxShadow:'0 12px 32px rgba(10,10,10,0.06)' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div><div style={{ fontSize:14, fontWeight:700, color:C.ink, fontFamily:F }}>Activity stream</div><div style={{ fontSize:12, color:C.t3, fontFamily:F, marginTop:2 }}>Live · Real conversations, real revenue</div></div>
         <div style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px', borderRadius:100, background:'rgba(78,63,255,0.08)' }}>
@@ -571,6 +650,7 @@ function LiveVisual() {
 function HowItWorks() {
   const [active, setActive] = useState(0);
   const [auto, setAuto] = useState(true);
+  const { isMobile, isNarrow } = useResponsive();
   useEffect(() => {
     if (!auto) return;
     const t = setTimeout(() => setActive((active+1)%3), 4500);
@@ -582,13 +662,13 @@ function HowItWorks() {
     {num:'03',time:'Ongoing',title:'Your AI replies — with interactive UI',desc:'Customers message. Pingbox picks the right block for the intent — service catalog, booking flow, pricing table — fills it with your data and ships a tappable reply.',visual:<LiveVisual />},
   ];
   return (
-    <section id="how" style={{ padding:'100px 24px', background:'#fff' }}>
+    <section id="how" style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:'#fff' }}>
       <div style={{ maxWidth:1180, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:48, gap:24, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems: isMobile ? 'flex-start' : 'flex-end', justifyContent:'space-between', marginBottom: isMobile ? 32 : 48, gap:16, flexWrap:'wrap' }}>
             <div style={{ maxWidth:600 }}>
               <Eyebrow>How it works</Eyebrow>
-              <h2 style={{ fontFamily:F, fontSize:48, fontWeight:800, color:C.ink, letterSpacing:'-0.04em', margin:'0 0 12px', lineHeight:1.02 }}>
+              <h2 style={{ fontFamily:F, fontSize: isMobile ? 32 : 48, fontWeight:800, color:C.ink, letterSpacing:'-0.04em', margin:'0 0 12px', lineHeight:1.04 }}>
                 Live in <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, color:C.accent, letterSpacing:'-0.025em' }}>5 minutes</span>.<br />No code. No consultants.
               </h2>
             </div>
@@ -598,24 +678,24 @@ function HowItWorks() {
             </div>
           </div>
         </FadeIn>
-        <div style={{ display:'grid', gridTemplateColumns:'340px 1fr', gap:40, alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns: isNarrow ? '1fr' : '340px 1fr', gap: isMobile ? 20 : 40, alignItems:'start' }}>
           <FadeIn delay={0.06}>
-            <div style={{ position:'sticky', top:100 }}>
+            <div style={{ position: isNarrow ? 'static' : 'sticky', top:100, display: isMobile ? 'flex' : 'block', flexDirection: isMobile ? 'column' : undefined, gap: isMobile ? 8 : undefined }}>
               {steps.map((s,i) => (
-                <button key={i} onClick={() => { setActive(i); setAuto(false); }} style={{ display:'block', width:'100%', textAlign:'left', padding:'22px 24px', background:active===i?C.ink:'#fff', color:active===i?'#fff':C.ink, border:`1px solid ${active===i?C.ink:C.border}`, borderRadius:14, marginBottom:10, cursor:'pointer', fontFamily:F, transition:'all 0.3s cubic-bezier(0.16,1,0.3,1)', position:'relative', overflow:'hidden' }}>
+                <button key={i} onClick={() => { setActive(i); setAuto(false); }} style={{ display:'block', width:'100%', textAlign:'left', padding: isMobile ? '16px 18px' : '22px 24px', background:active===i?C.ink:'#fff', color:active===i?'#fff':C.ink, border:`1px solid ${active===i?C.ink:C.border}`, borderRadius:14, marginBottom: isMobile ? 0 : 10, cursor:'pointer', fontFamily:F, transition:'all 0.3s cubic-bezier(0.16,1,0.3,1)', position:'relative', overflow:'hidden' }}>
                   {active===i&&auto&&<div style={{ position:'absolute', bottom:0, left:0, height:2, background:C.accent, animation:'progressBar 4.5s linear' }} />}
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                     <span style={{ fontFamily:FM, fontSize:11, fontWeight:700, color:active===i?C.accent:C.t3 }}>{s.num}</span>
                     <span style={{ fontSize:10, fontWeight:600, color:active===i?'rgba(255,255,255,0.5)':C.t4, fontFamily:F, padding:'2px 7px', borderRadius:4, background:active===i?'rgba(255,255,255,0.08)':C.surfaceAlt }}>{s.time}</span>
                   </div>
-                  <div style={{ fontSize:16, fontWeight:700, letterSpacing:'-0.015em', marginBottom:6, lineHeight:1.25 }}>{s.title}</div>
-                  <div style={{ fontSize:13, color:active===i?'rgba(255,255,255,0.65)':C.t3, fontFamily:F, lineHeight:1.5 }}>{s.desc}</div>
+                  <div style={{ fontSize: isMobile ? 15 : 16, fontWeight:700, letterSpacing:'-0.015em', marginBottom:6, lineHeight:1.25 }}>{s.title}</div>
+                  <div style={{ fontSize: isMobile ? 12.5 : 13, color:active===i?'rgba(255,255,255,0.65)':C.t3, fontFamily:F, lineHeight:1.5 }}>{s.desc}</div>
                 </button>
               ))}
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <div style={{ background:C.bg, borderRadius:18, padding:32, border:`1px solid ${C.border}`, minHeight:480, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ background:C.bg, borderRadius:18, padding: isMobile ? 16 : 32, border:`1px solid ${C.border}`, minHeight: isMobile ? 360 : 480, display:'flex', alignItems:'center', justifyContent:'center' }}>
               <div key={active} style={{ width:'100%', animation:'stepIn 0.5s cubic-bezier(0.16,1,0.3,1)' }}>{steps[active].visual}</div>
             </div>
           </FadeIn>
@@ -712,38 +792,39 @@ function Platform() {
   ];
   const p = products[active];
   const tabIcon = (id: string) => id === 'relay' ? icons.grid : id === 'engage' ? icons.broadcast : icons.chart;
+  const { isMobile, isNarrow } = useResponsive();
   return (
-    <section style={{ padding:'100px 24px', background:C.bg }}>
+    <section style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:C.bg }}>
       <div style={{ maxWidth:1180, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ textAlign:'center', marginBottom:50 }}>
+          <div style={{ textAlign:'center', marginBottom: isMobile ? 28 : 50 }}>
             <Eyebrow>The platform</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:48, fontWeight:800, color:C.ink, letterSpacing:'-0.04em', margin:'0 0 12px', lineHeight:1.02 }}>Three products. <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.025em' }}>One brain.</span></h2>
-            <p style={{ fontSize:16, color:C.t2, fontFamily:F, maxWidth:520, margin:'0 auto', fontWeight:400 }}>Everything you need to reply fast, manage every channel, and track what actually converts — built on one connected foundation.</p>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 32 : 48, fontWeight:800, color:C.ink, letterSpacing:'-0.04em', margin:'0 0 12px', lineHeight:1.04 }}>Three products. <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.025em' }}>One brain.</span></h2>
+            <p style={{ fontSize: isMobile ? 15 : 16, color:C.t2, fontFamily:F, maxWidth:520, margin:'0 auto', fontWeight:400 }}>Everything you need to reply fast, manage every channel, and track what actually converts — built on one connected foundation.</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.06}>
-          <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:40, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom: isMobile ? 20 : 40, flexWrap:'wrap' }}>
             {products.map((pr,i) => (
-              <button key={pr.id} onClick={() => setActive(i)} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 22px', borderRadius:12, border:`1px solid ${active===i?C.ink:C.border}`, cursor:'pointer', fontFamily:F, fontSize:14, fontWeight:700, background:active===i?C.ink:'#fff', color:active===i?'#fff':C.t2, transition:'all 0.2s ease' }}>
+              <button key={pr.id} onClick={() => setActive(i)} style={{ display:'flex', alignItems:'center', gap:10, padding: isMobile ? '10px 14px' : '12px 22px', borderRadius:12, border:`1px solid ${active===i?C.ink:C.border}`, cursor:'pointer', fontFamily:F, fontSize: isMobile ? 13 : 14, fontWeight:700, background:active===i?C.ink:'#fff', color:active===i?'#fff':C.t2, transition:'all 0.2s ease' }}>
                 <Ic d={tabIcon(pr.id)} size={15} stroke={active===i?pr.color:C.t3} />
                 {pr.label}
-                <span style={{ fontSize:11, fontWeight:500, color:active===i?'rgba(255,255,255,0.5)':C.t4, borderLeft:`1px solid ${active===i?'rgba(255,255,255,0.15)':C.border}`, paddingLeft:10 }}>{pr.sub}</span>
+                {!isMobile && <span style={{ fontSize:11, fontWeight:500, color:active===i?'rgba(255,255,255,0.5)':C.t4, borderLeft:`1px solid ${active===i?'rgba(255,255,255,0.15)':C.border}`, paddingLeft:10 }}>{pr.sub}</span>}
               </button>
             ))}
           </div>
         </FadeIn>
         <FadeIn key={p.id} delay={0.05}>
           <div style={{ background:'#fff', borderRadius:20, border:`1px solid ${C.border}`, boxShadow:'0 2px 8px rgba(10,10,10,0.03)', overflow:'hidden' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:520 }}>
-              <div style={{ padding:'48px 48px 40px', borderRight:`1px solid ${C.border}`, display:'flex', flexDirection:'column' }}>
+            <div style={{ display:'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', minHeight: isNarrow ? 'auto' : 520 }}>
+              <div style={{ padding: isMobile ? '28px 22px 24px' : '48px 48px 40px', borderRight: isNarrow ? 'none' : `1px solid ${C.border}`, display:'flex', flexDirection:'column', order: isNarrow ? 2 : 1 }}>
                 <div id={p.id} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:100, background:p.softBg, marginBottom:20, alignSelf:'flex-start' }}>
                   <Ic d={tabIcon(p.id)} size={12} stroke={p.color} />
                   <span style={{ fontSize:11, fontWeight:800, color:p.color, fontFamily:F, letterSpacing:'0.04em', textTransform:'uppercase' }}>{p.label}</span>
                 </div>
-                <h3 style={{ fontFamily:F, fontSize:32, fontWeight:800, color:C.ink, margin:'0 0 16px', letterSpacing:'-0.03em', lineHeight:1.08 }}>{p.headline}</h3>
-                <p style={{ fontSize:15, color:C.t2, fontFamily:F, lineHeight:1.65, margin:'0 0 32px', fontWeight:400 }}>{p.description}</p>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:24 }}>
+                <h3 style={{ fontFamily:F, fontSize: isMobile ? 24 : 32, fontWeight:800, color:C.ink, margin:'0 0 16px', letterSpacing:'-0.03em', lineHeight:1.12 }}>{p.headline}</h3>
+                <p style={{ fontSize: isMobile ? 14 : 15, color:C.t2, fontFamily:F, lineHeight:1.65, margin: isMobile ? '0 0 24px' : '0 0 32px', fontWeight:400 }}>{p.description}</p>
+                <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:8, marginBottom:24 }}>
                   {p.features.map((f,i) => (
                     <div key={i} style={{ padding:'14px 16px', borderRadius:10, background:C.bg, border:`1px solid ${C.borderLight}` }}>
                       <div style={{ fontSize:13, fontWeight:700, color:C.ink, fontFamily:F, marginBottom:4 }}>{f.title}</div>
@@ -752,14 +833,16 @@ function Platform() {
                   ))}
                 </div>
                 <div style={{ marginTop:'auto', paddingTop:20, borderTop:`1px solid ${C.borderLight}`, display:'flex', alignItems:'baseline', gap:12 }}>
-                  <span style={{ fontFamily:F, fontSize:40, fontWeight:800, color:p.color, letterSpacing:'-0.04em', lineHeight:1 }}>{p.stat.number}</span>
+                  <span style={{ fontFamily:F, fontSize: isMobile ? 32 : 40, fontWeight:800, color:p.color, letterSpacing:'-0.04em', lineHeight:1 }}>{p.stat.number}</span>
                   <span style={{ fontSize:13, color:C.t3, fontFamily:F, fontWeight:500 }}>{p.stat.label}</span>
                 </div>
               </div>
-              <div style={{ padding:48, background:`radial-gradient(ellipse at center, ${p.softBg} 0%, ${C.bg} 80%)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {p.id === 'relay' && <BlockLibraryVisual />}
-                {p.id === 'engage' && <EngageVisual />}
-                {p.id === 'intelligence' && <IntelligenceVisual />}
+              <div style={{ padding: isMobile ? '28px 20px' : 48, background:`radial-gradient(ellipse at center, ${p.softBg} 0%, ${C.bg} 80%)`, display:'flex', alignItems:'center', justifyContent:'center', borderBottom: isNarrow ? `1px solid ${C.border}` : 'none', order: isNarrow ? 1 : 2, overflow: 'hidden' }}>
+                <div style={{ width: '100%', maxWidth: 420 }}>
+                  {p.id === 'relay' && <BlockLibraryVisual />}
+                  {p.id === 'engage' && <EngageVisual />}
+                  {p.id === 'intelligence' && <IntelligenceVisual />}
+                </div>
               </div>
             </div>
           </div>
@@ -772,6 +855,7 @@ function Platform() {
 // ── Comparison ────────────────────────────────────────────────────────────────
 
 function Comparison() {
+  const { isMobile } = useResponsive();
   const rows = [
     {feature:'Reply format',others:'Text messages',us:'Tappable UI: catalogs, booking flows, quotes'},
     {feature:'What it optimizes for',others:'Response speed',us:'Conversion outcomes'},
@@ -781,44 +865,70 @@ function Comparison() {
     {feature:'Built for',others:'Reputation + reviews',us:'Inbound revenue acquisition'},
   ];
   return (
-    <section style={{ padding:'100px 24px', background:C.bg }}>
+    <section style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:C.bg }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ maxWidth:720, marginBottom:50, textAlign:'center', margin:'0 auto 50px' }}>
+          <div style={{ maxWidth:720, marginBottom: isMobile ? 28 : 50, textAlign:'center', margin: isMobile ? '0 auto 28px' : '0 auto 50px' }}>
             <Eyebrow>The difference</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 14px', lineHeight:1.05 }}>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 28 : 42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 14px', lineHeight:1.08 }}>
               Other tools send <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>messages</span>.<br />Pingbox sends <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, color:C.accent, letterSpacing:'-0.02em' }}>decisions</span>.
             </h2>
-            <p style={{ fontSize:16, color:C.t2, fontFamily:F, lineHeight:1.65, margin:'14px auto 0', maxWidth:600 }}>
+            <p style={{ fontSize: isMobile ? 14 : 16, color:C.t2, fontFamily:F, lineHeight:1.65, margin:'14px auto 0', maxWidth:600 }}>
               Legacy chat and messaging platforms compete on response time. We compete on revenue. We call it <strong style={{ color:C.ink }}>conversational lead conversion</strong>.
             </p>
           </div>
         </FadeIn>
         <FadeIn delay={0.08}>
-          <div style={{ background:'#fff', borderRadius:18, border:`1px solid ${C.border}`, overflow:'hidden' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1.1fr 1fr 1fr', borderBottom:`1px solid ${C.border}`, background:C.surfaceAlt }}>
-              <div style={{ padding:'20px 28px' }}><span style={{ fontSize:11, fontWeight:800, color:C.t3, fontFamily:F }}>VS.</span></div>
-              <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.border}` }}><span style={{ fontSize:13, fontWeight:700, color:C.t3, fontFamily:F }}>Legacy messaging tools</span></div>
-              <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.border}`, background:'#fff', display:'flex', alignItems:'center', gap:8 }}>
-                <div style={{ width:18, height:18, borderRadius:5, background:C.ink, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:6, height:6, borderRadius:'50%', background:C.accent }} /></div>
-                <span style={{ fontSize:13, fontWeight:800, color:C.ink, fontFamily:F }}>Pingbox</span>
-                <span style={{ fontSize:9, fontWeight:700, color:C.accent, background:C.accentSoft, padding:'2px 7px', borderRadius:4, fontFamily:F, marginLeft:'auto' }}>NEW CATEGORY</span>
-              </div>
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {rows.map((r,i) => (
+                <div key={i} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', background: C.surfaceAlt, borderBottom: `1px solid ${C.border}` }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, fontFamily: F, letterSpacing: '-0.005em' }}>{r.feature}</span>
+                  </div>
+                  <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.borderLight}`, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, minWidth: 72 }}>
+                      <Ic d={icons.x} size={13} stroke={C.t4} sw={2.5} />
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: C.t4, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: F }}>Others</span>
+                    </div>
+                    <span style={{ fontSize: 13, color: C.t3, fontFamily: F, lineHeight: 1.45 }}>{r.others}</span>
+                  </div>
+                  <div style={{ padding: '12px 16px', background: C.accentSoft + '55', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, minWidth: 72 }}>
+                      <Ic d={icons.check} size={13} stroke={C.accent} sw={2.5} />
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: C.accent, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: F }}>Pingbox</span>
+                    </div>
+                    <span style={{ fontSize: 13, color: C.ink, fontFamily: F, lineHeight: 1.45, fontWeight: 600 }}>{r.us}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-            {rows.map((r,i) => (
-              <div key={i} style={{ display:'grid', gridTemplateColumns:'1.1fr 1fr 1fr', borderBottom:i<rows.length-1?`1px solid ${C.borderLight}`:'none' }}>
-                <div style={{ padding:'20px 28px', display:'flex', alignItems:'center' }}><span style={{ fontSize:13, fontWeight:700, color:C.ink, fontFamily:F }}>{r.feature}</span></div>
-                <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.borderLight}`, display:'flex', alignItems:'center', gap:10 }}>
-                  <Ic d={icons.x} size={14} stroke={C.t4} sw={2.5} />
-                  <span style={{ fontSize:13, color:C.t3, fontFamily:F }}>{r.others}</span>
-                </div>
-                <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.borderLight}`, background:C.accentSoft+'55', display:'flex', alignItems:'center', gap:10 }}>
-                  <Ic d={icons.check} size={14} stroke={C.accent} sw={2.5} />
-                  <span style={{ fontSize:13, color:C.ink, fontFamily:F, fontWeight:600 }}>{r.us}</span>
+          ) : (
+            <div style={{ background:'#fff', borderRadius:18, border:`1px solid ${C.border}`, overflow:'hidden' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1.1fr 1fr 1fr', borderBottom:`1px solid ${C.border}`, background:C.surfaceAlt }}>
+                <div style={{ padding:'20px 28px' }}><span style={{ fontSize:11, fontWeight:800, color:C.t3, fontFamily:F }}>VS.</span></div>
+                <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.border}` }}><span style={{ fontSize:13, fontWeight:700, color:C.t3, fontFamily:F }}>Legacy messaging tools</span></div>
+                <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.border}`, background:'#fff', display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ width:18, height:18, borderRadius:5, background:C.ink, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:6, height:6, borderRadius:'50%', background:C.accent }} /></div>
+                  <span style={{ fontSize:13, fontWeight:800, color:C.ink, fontFamily:F }}>Pingbox</span>
+                  <span style={{ fontSize:9, fontWeight:700, color:C.accent, background:C.accentSoft, padding:'2px 7px', borderRadius:4, fontFamily:F, marginLeft:'auto' }}>NEW CATEGORY</span>
                 </div>
               </div>
-            ))}
-          </div>
+              {rows.map((r,i) => (
+                <div key={i} style={{ display:'grid', gridTemplateColumns:'1.1fr 1fr 1fr', borderBottom:i<rows.length-1?`1px solid ${C.borderLight}`:'none' }}>
+                  <div style={{ padding:'20px 28px', display:'flex', alignItems:'center' }}><span style={{ fontSize:13, fontWeight:700, color:C.ink, fontFamily:F }}>{r.feature}</span></div>
+                  <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.borderLight}`, display:'flex', alignItems:'center', gap:10 }}>
+                    <Ic d={icons.x} size={14} stroke={C.t4} sw={2.5} />
+                    <span style={{ fontSize:13, color:C.t3, fontFamily:F }}>{r.others}</span>
+                  </div>
+                  <div style={{ padding:'20px 28px', borderLeft:`1px solid ${C.borderLight}`, background:C.accentSoft+'55', display:'flex', alignItems:'center', gap:10 }}>
+                    <Ic d={icons.check} size={14} stroke={C.accent} sw={2.5} />
+                    <span style={{ fontSize:13, color:C.ink, fontFamily:F, fontWeight:600 }}>{r.us}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </FadeIn>
       </div>
     </section>
@@ -836,18 +946,20 @@ function Industries() {
     {name:'Law & Insurance',q:"\"Do you handle personal injury? What's the process?\"",color:C.amber,softBg:C.amberSoft,hoverBdr:'#C9B88E',href:'/for/law-insurance',tag:null},
     {name:'B2B Wholesale',q:'"Bulk price for 500 units of SKU BBV-075?"',color:C.rust,softBg:C.rustSoft,hoverBdr:'#E8A590',href:'/for/b2b-wholesale',tag:null},
   ];
+  const { isMobile, isTablet } = useResponsive();
+  const cols = isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
   return (
-    <section id="industries" style={{ padding:'100px 24px', background:'#fff' }}>
+    <section id="industries" style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:'#fff' }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ maxWidth:680, marginBottom:48 }}>
+          <div style={{ maxWidth:680, marginBottom: isMobile ? 28 : 48 }}>
             <Eyebrow>Built for your industry</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 14px', lineHeight:1.05 }}>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 28 : 42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 14px', lineHeight:1.08 }}>
               Built for your industry,<br />not <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>just</span> your use case.
             </h2>
           </div>
         </FadeIn>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns: cols, gap:14 }}>
           {items.map((ind,i) => (
             <FadeIn key={i} delay={i*0.04}>
               <a href={ind.href} style={{ display:'block', background:C.bg, borderRadius:14, padding:'24px 22px', border:`1px solid ${C.borderLight}`, textDecoration:'none', transition:'all 0.2s ease' }} onMouseEnter={e=>{e.currentTarget.style.borderColor=ind.hoverBdr;e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 12px 28px rgba(10,10,10,0.06)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderLight;e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='none';}}>
@@ -869,6 +981,7 @@ function Industries() {
 // ── WhyNot ────────────────────────────────────────────────────────────────────
 
 function WhyNot() {
+  const { isMobile } = useResponsive();
   const objections = [
     {q:"Isn't this just another chatbot?",a:"No. Chatbots reply with text. Pingbox replies with tappable UI — catalogs, booking forms, pricing tables. Customers tap instead of type. In tests across service verticals, that's a 3–5x lift on conversion."},
     {q:"How does it roll out across multiple locations?",a:"One deployment. Each location inherits the shared knowledge base, then overlays location-specific data — pricing, hours, staff, local promos. Deploy to 10 locations or 200 from a single admin."},
@@ -876,22 +989,22 @@ function WhyNot() {
     {q:"Can we control what the AI is allowed to say?",a:"Completely. The AI only answers from your approved documents. Set guardrails by topic, by location, by channel. Flag any response category for human review before it sends."},
   ];
   return (
-    <section style={{ padding:'100px 24px', background:C.bg }}>
+    <section style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:C.bg }}>
       <div style={{ maxWidth:1000, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ maxWidth:680, marginBottom:40 }}>
+          <div style={{ maxWidth:680, marginBottom: isMobile ? 24 : 40 }}>
             <Eyebrow color={C.t3}>The hard questions</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 12px', lineHeight:1.05 }}>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 28 : 42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 12px', lineHeight:1.08 }}>
               What operators ask <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>before</span> they sign up.
             </h2>
           </div>
         </FadeIn>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 12 : 16 }}>
           {objections.map((o,i) => (
             <FadeIn key={i} delay={i*0.05}>
-              <div style={{ background:'#fff', borderRadius:14, padding:'26px 28px', border:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:16, fontWeight:700, color:C.ink, fontFamily:F, marginBottom:10 }}>{o.q}</div>
-                <div style={{ fontSize:14, color:C.t2, fontFamily:F, lineHeight:1.65 }}>{o.a}</div>
+              <div style={{ background:'#fff', borderRadius:14, padding: isMobile ? '20px 22px' : '26px 28px', border:`1px solid ${C.border}` }}>
+                <div style={{ fontSize: isMobile ? 15 : 16, fontWeight:700, color:C.ink, fontFamily:F, marginBottom:10, lineHeight: 1.3 }}>{o.q}</div>
+                <div style={{ fontSize: isMobile ? 13.5 : 14, color:C.t2, fontFamily:F, lineHeight:1.65 }}>{o.a}</div>
               </div>
             </FadeIn>
           ))}
@@ -905,26 +1018,28 @@ function WhyNot() {
 
 function Pricing() {
   const [annual, setAnnual] = useState(true);
+  const { isMobile, isTablet } = useResponsive();
   const plans = [
     {name:'Starter',price:0,desc:'Evaluate the product on a single location.',cta:'Start free',ctaHref:'/early-access',featured:false,features:['Web widget, 1 channel','100 AI conversations / month','Core block library (Services, Booking, Pricing)','Community support']},
     {name:'Growth',price:annual?79:99,desc:'For single-location operators scaling inbound.',cta:'Start 14-day trial',ctaHref:'/early-access?plan=growth',featured:true,features:['All channels (Web, WhatsApp, Instagram, SMS)','1,000 AI conversations / month','Full vertical block library','Engage hub (unified inbox + broadcast)','Revenue attribution & pipeline dashboard','Priority email + Slack support']},
     {name:'Scale',price:annual?199:249,desc:'For multi-location brands and franchise groups.',cta:'Talk to sales',ctaHref:'/contact/sales',featured:false,features:['Everything in Growth','Multi-location admin · unlimited locations','5,000+ AI conversations / month','Custom block templates · SSO · SAML 2.0','CRM & ATS integrations · Full API access','Dedicated success manager · white-glove rollout']},
   ];
+  const cols = isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
   return (
-    <section id="pricing" style={{ padding:'100px 24px', background:'#fff' }}>
+    <section id="pricing" style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:'#fff' }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ textAlign:'center', marginBottom:40 }}>
+          <div style={{ textAlign:'center', marginBottom: isMobile ? 28 : 40 }}>
             <Eyebrow>Pricing</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 12px', lineHeight:1.05 }}>Start free. Upgrade when it&apos;s <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>paying for itself</span>.</h2>
-            <p style={{ fontSize:16, color:C.t2, fontFamily:F, marginBottom:24 }}>No per-seat fees. No surprise charges. Cancel anytime.</p>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 28 : 42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:'0 0 12px', lineHeight:1.08 }}>Start free. Upgrade when it&apos;s <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>paying for itself</span>.</h2>
+            <p style={{ fontSize: isMobile ? 14 : 16, color:C.t2, fontFamily:F, marginBottom:24 }}>No per-seat fees. No surprise charges. Cancel anytime.</p>
             <div style={{ display:'inline-flex', background:C.surfaceAlt, borderRadius:10, padding:3, border:`1px solid ${C.border}` }}>
-              <button onClick={() => setAnnual(true)} style={{ padding:'8px 20px', borderRadius:7, border:'none', cursor:'pointer', fontFamily:F, fontSize:13, fontWeight:700, background:annual?C.ink:'transparent', color:annual?'#fff':C.t3, transition:'all 0.2s' }}>Annual · save 20%</button>
-              <button onClick={() => setAnnual(false)} style={{ padding:'8px 20px', borderRadius:7, border:'none', cursor:'pointer', fontFamily:F, fontSize:13, fontWeight:700, background:!annual?C.ink:'transparent', color:!annual?'#fff':C.t3, transition:'all 0.2s' }}>Monthly</button>
+              <button onClick={() => setAnnual(true)} style={{ padding: isMobile ? '8px 14px' : '8px 20px', borderRadius:7, border:'none', cursor:'pointer', fontFamily:F, fontSize: isMobile ? 12 : 13, fontWeight:700, background:annual?C.ink:'transparent', color:annual?'#fff':C.t3, transition:'all 0.2s' }}>Annual · save 20%</button>
+              <button onClick={() => setAnnual(false)} style={{ padding: isMobile ? '8px 14px' : '8px 20px', borderRadius:7, border:'none', cursor:'pointer', fontFamily:F, fontSize: isMobile ? 12 : 13, fontWeight:700, background:!annual?C.ink:'transparent', color:!annual?'#fff':C.t3, transition:'all 0.2s' }}>Monthly</button>
             </div>
           </div>
         </FadeIn>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, alignItems:'stretch' }}>
+        <div style={{ display:'grid', gridTemplateColumns: cols, gap:16, alignItems:'stretch' }}>
           {plans.map((plan,i) => (
             <FadeIn key={plan.name} delay={i*0.06}>
               <div style={{ background:plan.featured?C.ink:'#fff', borderRadius:18, padding:'32px 28px', border:plan.featured?'none':`1px solid ${C.border}`, position:'relative', height:'100%', display:'flex', flexDirection:'column', boxShadow:plan.featured?'0 20px 48px rgba(10,10,10,0.2)':'none' }}>
@@ -957,6 +1072,7 @@ function Pricing() {
 
 function FAQ() {
   const [open, setOpen] = useState(0);
+  const { isMobile } = useResponsive();
   const items = [
     {q:'How long does setup actually take?',a:'Most brands go live in under 10 minutes on a single location. Multi-location rollouts typically complete the same business day.'},
     {q:'Do we need to migrate our existing phone number or accounts?',a:'No. Keep your existing WhatsApp Business number, SMS line, and social accounts. Pingbox routes through the official APIs — your number, contacts, and history stay intact.'},
@@ -967,23 +1083,23 @@ function FAQ() {
     {q:'Can we cancel anytime?',a:'Yes. No contracts, no lock-in, no early termination fees. Export all your data on the way out.'},
   ];
   return (
-    <section id="faq" style={{ padding:'100px 24px', background:C.bg }}>
+    <section id="faq" style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:C.bg }}>
       <div style={{ maxWidth:720, margin:'0 auto' }}>
         <FadeIn>
-          <div style={{ textAlign:'center', marginBottom:40 }}>
+          <div style={{ textAlign:'center', marginBottom: isMobile ? 24 : 40 }}>
             <Eyebrow color={C.t3}>FAQ</Eyebrow>
-            <h2 style={{ fontFamily:F, fontSize:42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:0, lineHeight:1.05 }}>Everything <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>else</span> you&apos;d want to know.</h2>
+            <h2 style={{ fontFamily:F, fontSize: isMobile ? 28 : 42, fontWeight:800, color:C.ink, letterSpacing:'-0.035em', margin:0, lineHeight:1.08 }}>Everything <span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, letterSpacing:'-0.02em' }}>else</span> you&apos;d want to know.</h2>
           </div>
         </FadeIn>
         <div style={{ background:'#fff', borderRadius:14, border:`1px solid ${C.border}`, overflow:'hidden' }}>
           {items.map((item,i) => (
             <div key={i} style={{ borderBottom:i<items.length-1?`1px solid ${C.borderLight}`:'none' }}>
-              <button onClick={() => setOpen(open===i?-1:i)} style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'20px 24px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>
-                <span style={{ fontSize:15, fontWeight:600, color:C.ink, fontFamily:F, paddingRight:16 }}>{item.q}</span>
+              <button onClick={() => setOpen(open===i?-1:i)} aria-expanded={open===i} style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', padding: isMobile ? '16px 18px' : '20px 24px', background:'none', border:'none', cursor:'pointer', textAlign:'left', gap: 14 }}>
+                <span style={{ fontSize: isMobile ? 14 : 15, fontWeight:600, color:C.ink, fontFamily:F, lineHeight: 1.35 }}>{item.q}</span>
                 <div style={{ transform:open===i?'rotate(180deg)':'rotate(0)', transition:'transform 0.25s', color:C.t3, flexShrink:0 }}><Ic d={icons.chevDown} size={18} /></div>
               </button>
-              <div style={{ maxHeight:open===i?200:0, overflow:'hidden', transition:'max-height 0.3s ease' }}>
-                <p style={{ fontSize:14, color:C.t2, fontFamily:F, lineHeight:1.7, margin:'0 24px 20px 24px', paddingRight:40 }}>{item.a}</p>
+              <div style={{ maxHeight:open===i?260:0, overflow:'hidden', transition:'max-height 0.3s ease' }}>
+                <p style={{ fontSize: isMobile ? 13.5 : 14, color:C.t2, fontFamily:F, lineHeight:1.7, margin: isMobile ? '0 18px 18px 18px' : '0 24px 20px 24px', paddingRight: isMobile ? 0 : 40 }}>{item.a}</p>
               </div>
             </div>
           ))}
@@ -996,22 +1112,23 @@ function FAQ() {
 // ── FinalCTA ──────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
+  const { isMobile } = useResponsive();
   return (
-    <section style={{ padding:'100px 24px', background:C.ink, position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', top:-120, right:-120, width:500, height:500, background:'radial-gradient(circle, rgba(78,63,255,0.25), transparent 65%)', borderRadius:'50%', pointerEvents:'none' }} />
+    <section style={{ padding: isMobile ? '64px 20px' : '100px 24px', background:C.ink, position:'relative', overflow:'hidden' }}>
+      <div style={{ position:'absolute', top:-120, right:-120, width:500, height:500, maxWidth:'120vw', background:'radial-gradient(circle, rgba(78,63,255,0.25), transparent 65%)', borderRadius:'50%', pointerEvents:'none' }} />
       <div style={{ maxWidth:720, margin:'0 auto', textAlign:'center', position:'relative' }}>
         <FadeIn>
-          <h2 style={{ fontFamily:F, fontSize:52, fontWeight:800, color:'#fff', letterSpacing:'-0.04em', margin:'0 0 18px', lineHeight:1 }}>
+          <h2 style={{ fontFamily:F, fontSize: isMobile ? 34 : 52, fontWeight:800, color:'#fff', letterSpacing:'-0.04em', margin:'0 0 18px', lineHeight:1.04 }}>
             Same ads. Same traffic.<br /><span style={{ fontFamily:FS, fontStyle:'italic', fontWeight:500, color:'#8A7DFF', letterSpacing:'-0.025em' }}>More decisions.</span>
           </h2>
-          <p style={{ fontSize:17, color:'rgba(255,255,255,0.6)', fontFamily:F, marginBottom:32, lineHeight:1.5, maxWidth:540, margin:'0 auto 32px' }}>
+          <p style={{ fontSize: isMobile ? 15 : 17, color:'rgba(255,255,255,0.6)', fontFamily:F, lineHeight:1.5, maxWidth:540, margin:'0 auto 32px' }}>
             Pingbox catches every inbound and converts it with interactive UI. Most operators see it pay for itself within a single ad cycle.
           </p>
-          <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
-            <Btn href="/early-access" variant="accent" style={{ padding:'16px 32px', fontSize:15 }}>Start free — 14 days <Ic d={icons.arrow} size={16} /></Btn>
-            <Btn href="/contact/sales" variant="secondary" style={{ padding:'16px 32px', fontSize:15, background:'transparent', color:'#fff', border:'1px solid rgba(255,255,255,0.2)' }}>Talk to sales</Btn>
+          <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
+            <Btn href="/early-access" variant="accent" style={{ padding: isMobile ? '14px 24px' : '16px 32px', fontSize:15, justifyContent: 'center' }}>Start free — 14 days <Ic d={icons.arrow} size={16} /></Btn>
+            <Btn href="/contact/sales" variant="secondary" style={{ padding: isMobile ? '14px 24px' : '16px 32px', fontSize:15, background:'transparent', color:'#fff', border:'1px solid rgba(255,255,255,0.2)', justifyContent: 'center' }}>Talk to sales</Btn>
           </div>
-          <div style={{ display:'flex', gap:20, justifyContent:'center', marginTop:22, fontSize:13, color:'rgba(255,255,255,0.4)', fontFamily:F, fontWeight:500 }}>
+          <div style={{ display:'flex', gap: isMobile ? 12 : 20, justifyContent:'center', marginTop:22, fontSize: isMobile ? 12 : 13, color:'rgba(255,255,255,0.4)', fontFamily:F, fontWeight:500, flexWrap:'wrap' }}>
             {['No credit card','No sales call required','Deploy in 5 minutes'].map(t => (
               <div key={t} style={{ display:'flex', alignItems:'center', gap:5 }}><Ic d={icons.check} size={12} stroke="#8A7DFF" sw={2.5} />{t}</div>
             ))}
@@ -1025,6 +1142,7 @@ function FinalCTA() {
 // ── Footer ────────────────────────────────────────────────────────────────────
 
 function Footer() {
+  const { isMobile, isTablet } = useResponsive();
   const cols = [
     {title:'Product',links:[{label:'Relay',href:'/relay'},{label:'Engage',href:'/engage'},{label:'Intelligence',href:'/intelligence'},{label:'Pricing',href:'/pricing'},{label:'Changelog',href:'/changelog'}]},
     {title:'Industries',links:[{label:'Dental clinics',href:'/for/dental-clinics'},{label:'HVAC',href:'/for/hvac'},{label:'Fitness',href:'/for/fitness'},{label:'Real estate',href:'/for/real-estate'},{label:'Law & insurance',href:'/for/law-insurance'},{label:'B2B Wholesale',href:'/for/b2b-wholesale'}]},
@@ -1032,29 +1150,30 @@ function Footer() {
     {title:'Company',links:[{label:'About',href:'/about'},{label:'Careers',href:'/careers'},{label:'Privacy',href:'/privacy'},{label:'Terms',href:'/terms'},{label:'Security',href:'/security'}]},
   ];
   const regions = [{label:'Global',href:'/',flag:'🌐'},{label:'United States',href:'/us',flag:'🇺🇸'},{label:'India',href:'/in',flag:'🇮🇳'}];
+  const gridCols = isMobile ? '1fr 1fr' : isTablet ? 'repeat(4, 1fr)' : '2fr 1fr 1fr 1fr 1fr';
   return (
-    <footer style={{ padding:'56px 24px 32px', background:C.ink, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+    <footer style={{ padding: isMobile ? '40px 20px 24px' : '56px 24px 32px', background:C.ink, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr', gap:40, marginBottom:40 }}>
-          <div>
+        <div style={{ display:'grid', gridTemplateColumns: gridCols, gap: isMobile ? 28 : isTablet ? 28 : 40, marginBottom: isMobile ? 28 : 40 }}>
+          <div style={{ gridColumn: (isMobile || isTablet) ? '1 / -1' : 'auto' }}>
             <a href="/" style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14, textDecoration:'none' }}>
               <div style={{ width:28, height:28, background:'#fff', borderRadius:7, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:8, height:8, borderRadius:'50%', background:C.accent }} /></div>
               <span style={{ fontFamily:F, fontSize:18, fontWeight:700, color:'#fff', letterSpacing:'-0.025em' }}>Pingbox</span>
             </a>
-            <p style={{ fontSize:13, color:'rgba(255,255,255,0.45)', fontFamily:F, lineHeight:1.6, maxWidth:260, margin:'0 0 16px' }}>Conversational lead conversion for service brands. Turn every inquiry into a decision, not just a reply.</p>
+            <p style={{ fontSize:13, color:'rgba(255,255,255,0.45)', fontFamily:F, lineHeight:1.6, maxWidth:300, margin:'0 0 16px' }}>Conversational lead conversion for service brands. Turn every inquiry into a decision, not just a reply.</p>
             <a href="mailto:hey@pingbox.io" style={{ fontSize:12, color:'rgba(255,255,255,0.45)', fontFamily:F, textDecoration:'none' }}>hey@pingbox.io</a>
           </div>
           {cols.map(col => (
             <div key={col.title}>
-              <div style={{ fontSize:11, fontWeight:800, letterSpacing:'0.1em', color:'rgba(255,255,255,0.4)', fontFamily:F, marginBottom:16, textTransform:'uppercase' }}>{col.title}</div>
+              <div style={{ fontSize:11, fontWeight:800, letterSpacing:'0.1em', color:'rgba(255,255,255,0.4)', fontFamily:F, marginBottom: isMobile ? 10 : 16, textTransform:'uppercase' }}>{col.title}</div>
               {col.links.map(l => <a key={l.href} href={l.href} style={{ display:'block', fontSize:13, color:'rgba(255,255,255,0.6)', textDecoration:'none', fontFamily:F, padding:'5px 0', transition:'color 0.12s' }} onMouseEnter={e=>(e.currentTarget.style.color='#fff')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,0.6)')}>{l.label}</a>)}
             </div>
           ))}
         </div>
-        <div style={{ paddingTop:24, paddingBottom:20, borderTop:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:16 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ paddingTop:24, paddingBottom:20, borderTop:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems: isMobile ? 'flex-start' : 'center', flexWrap:'wrap', gap:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap: 'wrap' }}>
             <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.35)', letterSpacing:'0.08em', textTransform:'uppercase', fontFamily:F }}>Region</span>
-            <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,0.04)', borderRadius:8, padding:3 }}>
+            <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,0.04)', borderRadius:8, padding:3, flexWrap:'wrap' }}>
               {regions.map(r => <a key={r.href} href={r.href} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', textDecoration:'none', fontFamily:F }} onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#fff';}} onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}>
                 <span style={{ fontSize:13 }}>{r.flag}</span>{r.label}
               </a>)}
