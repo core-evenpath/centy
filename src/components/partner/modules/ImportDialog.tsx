@@ -4,13 +4,20 @@ import { useState, useCallback, useRef } from 'react';
 import { ModuleSchema, ModuleFieldDefinition, ModuleItem, PartnerModule } from '@/lib/modules/types';
 import { generateSampleCSVAction, mapCSVColumnsAction } from '@/actions/import-actions';
 import { bulkCreateModuleItemsAction } from '@/actions/modules-actions';
+import {
+    validateImportRows,
+    buildImportErrorCSV,
+    type ImportValidationResult,
+} from '@/lib/import/validate-import-row';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Download, Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, AlertTriangle, FileWarning } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+
+const MAX_INLINE_ERRORS = 20;
 
 interface ImportDialogProps {
     open: boolean;
@@ -59,6 +66,16 @@ export function ImportDialog({
     const [isDownloading, setIsDownloading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
+    // PR E5: validation outcome from the most recent import attempt.
+    // When non-null, the dialog renders the error-review screen so the
+    // partner can see which rows failed and download the full report.
+    const [validationOutcome, setValidationOutcome] = useState<
+        | null
+        | {
+              invalid: ImportValidationResult<Partial<ModuleItem>>['invalid'];
+              imported: number;
+          }
+    >(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const schemaFieldsForMapping = schema.fields.filter(f => f.type !== 'image');
@@ -78,6 +95,7 @@ export function ImportDialog({
         setIsLoadingMappings(false);
         setIsImporting(false);
         setFileName(null);
+        setValidationOutcome(null);
     }, []);
 
     const handleOpenChange = useCallback((newOpen: boolean) => {
@@ -306,17 +324,45 @@ export function ImportDialog({
                 return item;
             });
 
+            // PR E5: schema-validate before hitting the network. Rows
+            // that fail validation (missing required fields, bad types,
+            // invalid select options) are excluded from the import and
+            // surfaced in a per-row error screen after.
+            const { valid, invalid } = validateImportRows(items, schema.fields);
+
+            if (valid.length === 0) {
+                // Nothing to import — jump straight to the error review
+                // so the partner can see what's broken and re-upload a
+                // corrected file.
+                setValidationOutcome({ invalid, imported: 0 });
+                toast.error(
+                    `${invalid.length} row${invalid.length === 1 ? '' : 's'} failed validation — no imports`,
+                );
+                return;
+            }
+
             const result = await bulkCreateModuleItemsAction(
                 partnerId,
                 partnerModule.id,
-                items,
-                userId
+                valid,
+                userId,
             );
 
             if (result.success && result.data) {
-                toast.success(`Imported ${result.data.created} items${result.data.failed > 0 ? ` (${result.data.failed} failed)` : ''}`);
-                onImportComplete();
-                handleOpenChange(false);
+                const created = result.data.created;
+                const failed = result.data.failed + invalid.length;
+                setValidationOutcome({ invalid, imported: created });
+                if (invalid.length > 0) {
+                    toast.warning(
+                        `Imported ${created}; ${invalid.length} row${invalid.length === 1 ? '' : 's'} skipped — see errors below.`,
+                    );
+                } else {
+                    toast.success(
+                        `Imported ${created} item${created === 1 ? '' : 's'}${failed > 0 ? ` (${failed} failed)` : ''}`,
+                    );
+                    onImportComplete();
+                    handleOpenChange(false);
+                }
             } else {
                 toast.error(result.error || 'Import failed');
             }
@@ -325,7 +371,23 @@ export function ImportDialog({
         } finally {
             setIsImporting(false);
         }
-    }, [fileData, fileHeaders, mappings, schemaFieldsForMapping, partnerId, partnerModule.id, userId, onImportComplete, handleOpenChange]);
+    }, [fileData, fileHeaders, mappings, schema.fields, schemaFieldsForMapping, partnerId, partnerModule.id, userId, onImportComplete, handleOpenChange]);
+
+    // PR E5: full error report download for large imports. Partners
+    // open the CSV in a spreadsheet, fix rows, re-upload.
+    const handleDownloadErrors = useCallback(() => {
+        if (!validationOutcome) return;
+        const csv = buildImportErrorCSV(validationOutcome.invalid);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${moduleSlug}_import_errors_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, [validationOutcome, moduleSlug]);
 
     const mappedCount = Object.values(mappings).filter(v => v && v !== 'skip').length;
 
@@ -352,7 +414,7 @@ export function ImportDialog({
                     </div>
                 </div>
 
-                {step === 'upload' && (
+                {!validationOutcome && step === 'upload' && (
                     <div className="space-y-4">
                         <Button
                             variant="outline"
@@ -408,7 +470,90 @@ export function ImportDialog({
                     </div>
                 )}
 
-                {step === 'mapping' && (
+                {validationOutcome && (
+                    <div className="space-y-4">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                            <div className="flex items-start gap-2 text-sm text-amber-900">
+                                <FileWarning className="h-4 w-4 shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-medium">
+                                        {validationOutcome.imported > 0
+                                            ? `Imported ${validationOutcome.imported} row${validationOutcome.imported === 1 ? '' : 's'}. `
+                                            : 'No rows imported. '}
+                                        {validationOutcome.invalid.length} failed validation.
+                                    </div>
+                                    <div className="text-xs mt-1">
+                                        Skipped rows aren't saved. Fix them in your source file and re-upload, or edit the schema to match your data.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="border rounded-lg overflow-hidden">
+                            <div className="grid grid-cols-[60px_1fr_2fr] gap-0 bg-muted px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                <div>Row</div>
+                                <div>Name</div>
+                                <div>Issues</div>
+                            </div>
+                            <div className="divide-y max-h-[40vh] overflow-y-auto">
+                                {validationOutcome.invalid.slice(0, MAX_INLINE_ERRORS).map((r) => (
+                                    <div
+                                        key={r.rowIndex}
+                                        className="grid grid-cols-[60px_1fr_2fr] gap-0 px-4 py-2 text-sm"
+                                    >
+                                        <div className="text-muted-foreground">{r.rowIndex + 1}</div>
+                                        <div className="truncate" title={String(r.row.name ?? '')}>
+                                            {String(r.row.name ?? <span className="text-muted-foreground italic">—</span>)}
+                                        </div>
+                                        <div className="text-amber-800 text-xs">
+                                            {r.errors.join(' • ')}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {validationOutcome.invalid.length > MAX_INLINE_ERRORS && (
+                                <div className="px-4 py-2 text-xs text-muted-foreground border-t bg-muted/40">
+                                    +{validationOutcome.invalid.length - MAX_INLINE_ERRORS} more — download the full report below.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                            <Button variant="outline" onClick={handleDownloadErrors}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download errors CSV
+                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setValidationOutcome(null);
+                                        setStep('upload');
+                                        setFileHeaders([]);
+                                        setFileData([]);
+                                        setMappings({});
+                                        setConfidence({});
+                                        setFileName(null);
+                                    }}
+                                >
+                                    Upload another
+                                </Button>
+                                {validationOutcome.imported > 0 && (
+                                    <Button
+                                        onClick={() => {
+                                            onImportComplete();
+                                            handleOpenChange(false);
+                                        }}
+                                    >
+                                        Done
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {!validationOutcome && step === 'mapping' && (
                     <div className="space-y-4">
                         {fileName && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">

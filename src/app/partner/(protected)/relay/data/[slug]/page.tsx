@@ -13,10 +13,11 @@ import {
     reorderItemsAction,
     deleteAllModuleItemsAction,
     exportModuleItemsAction,
+    getRelaySchemaTemplateCSVAction,
 } from '@/actions/modules-actions';
 import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles, FileDown } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
 import IngestMount from '@/components/relay/ai-ingest/IngestMount';
 import { useAIIngest } from '@/hooks/useAIIngest';
@@ -73,6 +74,7 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
     const [showCustomFields, setShowCustomFields] = useState(false);
     const [isSeedingSamples, setIsSeedingSamples] = useState(false);
 
@@ -163,7 +165,7 @@ export default function ModuleManagePage({ params }: PageProps) {
         return (
             <div className="container mx-auto py-8">
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
-                    <Link href="/partner/relay/modules">
+                    <Link href="/partner/relay/data">
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back to Modules
                     </Link>
@@ -185,7 +187,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                         }, null, 2)}
                     </pre>
                     <Button asChild className="mt-4">
-                        <Link href="/partner/relay/modules">Browse Available Modules</Link>
+                        <Link href="/partner/relay/data">Browse Available Modules</Link>
                     </Button>
                 </div>
             </div>
@@ -314,11 +316,37 @@ export default function ModuleManagePage({ params }: PageProps) {
         }
     };
 
+    // PR E5: empty-template CSV derived from the live schema — headers
+    // only, no rows. Partner fills in and re-imports via the same flow.
+    const handleDownloadTemplate = async () => {
+        if (!partnerId || !moduleId) return;
+        setIsDownloadingTemplate(true);
+        try {
+            const result = await getRelaySchemaTemplateCSVAction(partnerId, moduleId);
+            if (result.success && result.data) {
+                const blob = new Blob([result.data.csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = result.data.filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success(`Template ready (${result.data.headerCount} columns)`);
+            } else {
+                toast.error(result.error || 'Could not generate template');
+            }
+        } catch {
+            toast.error('Could not generate template');
+        } finally {
+            setIsDownloadingTemplate(false);
+        }
+    };
+
     return (
         <div className="container mx-auto py-8">
             <div className="mb-8">
                 <Button variant="ghost" className="mb-4 pl-0 hover:pl-0 hover:bg-transparent" asChild>
-                    <Link href="/partner/relay/modules">
+                    <Link href="/partner/relay/data">
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back to Modules
                     </Link>
@@ -357,6 +385,16 @@ export default function ModuleManagePage({ params }: PageProps) {
                         <Button variant="outline" onClick={handleExport} disabled={isExporting}>
                             <Download className={`mr-2 h-4 w-4 ${isExporting ? 'animate-spin' : ''}`} />
                             {isExporting ? 'Exporting...' : 'Export CSV'}
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={handleDownloadTemplate}
+                            disabled={isDownloadingTemplate}
+                            title="Download an empty CSV with the right columns — fill it in and re-upload via Import."
+                        >
+                            <FileDown className={`mr-2 h-4 w-4 ${isDownloadingTemplate ? 'animate-spin' : ''}`} />
+                            {isDownloadingTemplate ? 'Preparing…' : 'Download template'}
                         </Button>
 
                         <Button variant="outline" onClick={() => setIsImportOpen(true)}>

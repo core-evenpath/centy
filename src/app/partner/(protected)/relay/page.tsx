@@ -64,7 +64,7 @@ const EMOJI_OPTIONS = ['💬', '🤖', '✨', '🏨', '🍽️', '💼', '🎯',
 
 const DIAG_LINKS: Record<string, string> = {
     'Widget Configuration': '/partner/relay',
-    'Module Data': '/partner/relay/modules',
+    'Module Data': '/partner/relay/data',
     'Relay Block Configs': '/admin/modules/new',
 };
 

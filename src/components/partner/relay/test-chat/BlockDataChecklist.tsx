@@ -46,7 +46,7 @@ import { Button } from '@/components/ui/button';
 //   - sample item chips (names of the 3 most-recently-updated items)
 //   - last-updated relative time
 //   - per-block status chips (ready vs still-needs-data)
-//   - deep link CTA into /partner/relay/modules/{slug}
+//   - deep link CTA into /partner/relay/data/{slug}
 
 interface Props {
     guide: FunctionDataGuide;
@@ -222,10 +222,10 @@ export default function BlockDataChecklist({
                     <p className="text-sm text-muted-foreground mt-1">
                         Each row below is a module in{' '}
                         <Link
-                            href="/partner/relay/modules"
+                            href="/partner/relay/data"
                             className="underline underline-offset-2 hover:text-foreground"
                         >
-                            /partner/relay/modules
+                            /partner/relay/data
                         </Link>
                         . Add items there and every block that reads from the module picks them up in the chat.
                     </p>

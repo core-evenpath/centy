@@ -98,7 +98,7 @@ export async function activateAICollectionAction(
 
     try {
       revalidatePath('/partner/relay/datamap');
-      revalidatePath('/partner/relay/modules');
+      revalidatePath('/partner/relay/data');
     } catch {
       /* best-effort */
     }

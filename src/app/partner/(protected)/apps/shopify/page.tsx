@@ -538,7 +538,7 @@ export default function ShopifyIntegrationPage() {
                             <div className="flex gap-3">
                                 {config.linkedModuleSlug && (
                                     <Button asChild variant="outline" size="sm">
-                                        <Link href={`/partner/relay/modules/${config.linkedModuleSlug}`}>
+                                        <Link href={`/partner/relay/data/${config.linkedModuleSlug}`}>
                                             <Package className="w-4 h-4 mr-2" />
                                             View Products
                                         </Link>

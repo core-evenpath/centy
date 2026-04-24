@@ -15,7 +15,7 @@ const RELAY_SUB_NAV: Array<{
     { href: '/partner/relay', label: 'Overview', icon: Zap, exact: true },
     { href: '/partner/relay/test-chat', label: 'Test Chat', icon: Play },
     { href: '/partner/relay/datamap', label: 'Content Studio', icon: Map },
-    { href: '/partner/relay/modules', label: 'Modules', icon: Package },
+    { href: '/partner/relay/data', label: 'Modules', icon: Package },
     { href: '/partner/relay/blocks', label: 'Cards', icon: Layers },
     { href: '/partner/relay/flows', label: 'Conversations', icon: GitBranch },
 ];
