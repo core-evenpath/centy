@@ -29,6 +29,7 @@ import {
   getVerticalForSlug,
   type RelayVertical,
 } from '@/lib/relay/relay-verticals';
+import { revalidatePath } from 'next/cache';
 
 export interface VerticalEnrichResult {
   success: boolean;
@@ -115,5 +116,12 @@ export async function generateAndEnrichVerticalAction(
       schemas,
       error: err?.message ?? 'unknown',
     };
+  } finally {
+    // Crucial: invalidate the analytics page so the Schemas tab,
+    // SummaryCards, and Recent Runs all reflect the new state.
+    // Without this, the user sees Schemas (0) even after a
+    // successful generation because the server tree is cached.
+    revalidatePath('/admin/relay/data');
+    revalidatePath('/admin/relay/data/[slug]', 'page');
   }
 }

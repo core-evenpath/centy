@@ -26,6 +26,8 @@ import VerticalFilter from './VerticalFilter';
 import SubVerticalFilter from './SubVerticalFilter';
 import ModuleCard from './ModuleCard';
 import BlockGalleryView, { type BlockStatus } from './BlockGalleryView';
+import PipelineHealthCard from './PipelineHealthCard';
+import RecentRunsCard from './RecentRunsCard';
 
 interface Props {
   data: RelayModuleAnalytics;
@@ -84,6 +86,18 @@ export default function RelayModulesView({ data }: Props) {
   return (
     <div className="space-y-6">
       <SummaryCards data={data} />
+
+      {(data.pipelineGaps || data.recentRuns) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {data.pipelineGaps && (
+            <PipelineHealthCard
+              gaps={data.pipelineGaps}
+              totalSchemas={data.totalModules}
+            />
+          )}
+          {data.recentRuns && <RecentRunsCard runs={data.recentRuns} />}
+        </div>
+      )}
 
       {driftCount > 0 && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">

@@ -71,6 +71,46 @@ export interface ModuleBlockUsage {
   schemaFields?: string[];
 }
 
+// ── PR fix-9: pipeline health + recent runs ────────────────────────
+
+/**
+ * Actionable issues found by walking the registry + relaySchemas
+ * collection. Surfaced on /admin/relay/data so admin can spot what
+ * needs fixing without hunting through tabs.
+ */
+export interface PipelineGaps {
+  /** Slugs referenced by `block.module` that have no relaySchemas doc. */
+  missingSchemas: string[];
+  /** Schemas with `schema.fields.length === 0` — broken seed. */
+  emptySchemas: string[];
+  /** Schemas with no consumer blocks in the current registry — orphan slugs. */
+  orphanSchemas: string[];
+  /** Total blocks with non-empty driftFields (already in BlockModuleBinding). */
+  driftBlocks: number;
+  /** Total blocks with bindsSchema === false. */
+  unboundBlocks: number;
+}
+
+/**
+ * One recent generate/enrich/edit event per schema. Sourced from the
+ * provenance timestamps stored on each relaySchemas doc. Sorted by
+ * most-recent-first.
+ */
+export interface RecentRun {
+  slug: string;
+  schemaName?: string;
+  /** ISO timestamp of the most recent provenance event on this schema. */
+  at: string;
+  /** What kind of run produced the latest state. */
+  kind: 'enriched' | 'edited' | 'generated';
+  /** Number of fields the schema currently has. */
+  fieldCount: number;
+  /** Model used if kind === 'enriched'. */
+  model?: string;
+  /** Number of fields appended in the last enrichment, when known. */
+  enrichedFieldCount?: number;
+}
+
 export interface RelayModuleAnalytics {
   connectedBlocks: BlockModuleBinding[];
   darkBlocks: BlockModuleBinding[];
@@ -80,6 +120,10 @@ export interface RelayModuleAnalytics {
   blocksWithModules: number;
   darkBlockCount: number;
   totalModules: number;
+
+  // PR fix-9
+  pipelineGaps?: PipelineGaps;
+  recentRuns?: RecentRun[];
 }
 
 export interface SimpleBlockRef {

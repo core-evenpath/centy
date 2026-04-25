@@ -28,6 +28,8 @@ import type {
   BlockModuleBinding,
   ModuleBlockUsage,
   RelayModuleAnalytics,
+  PipelineGaps,
+  RecentRun,
 } from '@/lib/relay/module-analytics-types';
 
 interface ModuleInfo {
@@ -37,6 +39,12 @@ interface ModuleInfo {
   slug: string;
   /** Field names from the live schema — used for drift comparison. */
   schemaFields: string[];
+  // PR fix-9: provenance for the recent-runs panel + pipeline gaps.
+  generatedFromRegistryAt?: string;
+  lastEnrichedAt?: string;
+  lastEnrichedModel?: string;
+  lastEnrichedFieldCount?: number;
+  lastEditedAt?: string;
 }
 
 interface ModuleCounts {
@@ -82,6 +90,17 @@ async function loadRelaySchemas(): Promise<Map<string, ModuleInfo>> {
       color: d.color || '#6366f1',
       slug,
       schemaFields,
+      // PR fix-9: provenance for recent-runs view.
+      generatedFromRegistryAt:
+        typeof d.generatedFromRegistryAt === 'string' ? d.generatedFromRegistryAt : undefined,
+      lastEnrichedAt:
+        typeof d.lastEnrichedAt === 'string' ? d.lastEnrichedAt : undefined,
+      lastEnrichedModel:
+        typeof d.lastEnrichedModel === 'string' ? d.lastEnrichedModel : undefined,
+      lastEnrichedFieldCount:
+        typeof d.lastEnrichedFieldCount === 'number' ? d.lastEnrichedFieldCount : undefined,
+      lastEditedAt:
+        typeof d.lastEditedAt === 'string' ? d.lastEditedAt : undefined,
     });
   });
   return out;
@@ -236,6 +255,71 @@ export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAna
     const darkBlocks = bindings.filter((b) => b.isDark);
     const moduleUsage = buildModuleUsage(bindings, modules, counts);
 
+    // PR fix-9: pipeline gaps. Static checks for actionable issues
+    // surfaced on the page so admin can spot problems without
+    // hunting through tabs.
+    const referencedSlugs = new Set<string>();
+    for (const b of ALL_BLOCKS_DATA) {
+      if (b.module) referencedSlugs.add(b.module);
+    }
+    const missingSchemas = Array.from(referencedSlugs)
+      .filter((slug) => !modules.has(slug))
+      .sort();
+    const emptySchemas: string[] = [];
+    const orphanSchemas: string[] = [];
+    for (const [slug, info] of modules) {
+      if (info.schemaFields.length === 0) emptySchemas.push(slug);
+      if (!referencedSlugs.has(slug)) orphanSchemas.push(slug);
+    }
+    const driftBlocks = bindings.filter(
+      (b) => (b.driftFields?.length ?? 0) > 0,
+    ).length;
+    const unboundBlocks = bindings.filter((b) => b.bindsSchema === false).length;
+
+    const pipelineGaps: PipelineGaps = {
+      missingSchemas,
+      emptySchemas: emptySchemas.sort(),
+      orphanSchemas: orphanSchemas.sort(),
+      driftBlocks,
+      unboundBlocks,
+    };
+
+    // PR fix-9: recent runs. Derive from each schema's provenance
+    // timestamps — pick the most-recent event per schema, sort
+    // overall, take top 10. No new collection needed.
+    const recentRuns: RecentRun[] = [];
+    for (const info of modules.values()) {
+      // Pick the latest of the three provenance timestamps and tag
+      // the run with the matching kind. lastEditedAt wins ties since
+      // a manual edit is the most recent intentional touch.
+      let at: string | undefined;
+      let kind: RecentRun['kind'] = 'generated';
+      if (info.generatedFromRegistryAt) {
+        at = info.generatedFromRegistryAt;
+        kind = 'generated';
+      }
+      if (info.lastEnrichedAt && (!at || info.lastEnrichedAt > at)) {
+        at = info.lastEnrichedAt;
+        kind = 'enriched';
+      }
+      if (info.lastEditedAt && (!at || info.lastEditedAt > at)) {
+        at = info.lastEditedAt;
+        kind = 'edited';
+      }
+      if (!at) continue;
+      recentRuns.push({
+        slug: info.slug,
+        schemaName: info.name,
+        at,
+        kind,
+        fieldCount: info.schemaFields.length,
+        model: kind === 'enriched' ? info.lastEnrichedModel : undefined,
+        enrichedFieldCount:
+          kind === 'enriched' ? info.lastEnrichedFieldCount : undefined,
+      });
+    }
+    recentRuns.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
     return {
       success: true,
       data: {
@@ -246,6 +330,8 @@ export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAna
         blocksWithModules: bindings.filter((b) => !!b.moduleSlug).length,
         darkBlockCount: darkBlocks.length,
         totalModules: modules.size,
+        pipelineGaps,
+        recentRuns: recentRuns.slice(0, 10),
       },
     };
   } catch (e) {
