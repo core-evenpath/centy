@@ -15,6 +15,7 @@ import RelayModulesView from './RelayModulesView';
 import RelayPageIntro from '../components/RelayPageIntro';
 import RelaySubNav from '../components/RelaySubNav';
 import VerticalEnrichButton from './VerticalEnrichButton';
+import DangerZone from './DangerZone';
 
 export const metadata = {
   title: 'Relay Data · Admin',
@@ -24,6 +25,10 @@ export const metadata = {
 
 export default async function AdminRelayDataPage() {
   const result = await getRelayModuleAnalyticsAction();
+  // Schema count drives the DangerZone messaging + disabled state.
+  // RelayModuleAnalytics.modules has one entry per relaySchemas doc
+  // (the analytics action joins on slug), so length === schema count.
+  const schemaCount = result.success && result.data ? result.data.modules.length : 0;
 
   return (
     <div className="container mx-auto py-4 px-6 flex flex-col gap-4">
@@ -41,6 +46,8 @@ export default async function AdminRelayDataPage() {
           Error loading analytics: {result.error ?? 'unknown'}
         </div>
       )}
+
+      <DangerZone schemaCount={schemaCount} />
     </div>
   );
 }
