@@ -28,7 +28,7 @@ import {
 } from '@/lib/relay/block-module-graph';
 import RelaySubNav from '../../components/RelaySubNav';
 import RelayPageIntro from '../../components/RelayPageIntro';
-import SchemaFieldsTable from './SchemaFieldsTable';
+import SchemaFieldsPanel from './SchemaFieldsPanel';
 import SchemaConsumersPanel from './SchemaConsumersPanel';
 import EnrichButton from './EnrichButton';
 
@@ -116,7 +116,7 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <SchemaFieldsTable schema={schema} />
+          <SchemaFieldsPanel slug={slug} schema={schema} />
         </div>
         <div>
           <SchemaConsumersPanel
