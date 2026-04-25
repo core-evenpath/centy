@@ -19,6 +19,7 @@ import DarkBlockCard from './DarkBlockCard';
 import ConnectedBlockCard from './ConnectedBlockCard';
 import ModuleCard from './ModuleCard';
 import ModuleLessSection from './ModuleLessSection';
+import BlockGalleryView from './BlockGalleryView';
 
 interface Props {
   data: RelayModuleAnalytics;
@@ -114,8 +115,11 @@ export default function RelayModulesView({ data }: Props) {
         />
       </div>
 
-      <Tabs defaultValue="dark" className="space-y-4">
+      <Tabs defaultValue="gallery" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="gallery">
+            Gallery
+          </TabsTrigger>
           <TabsTrigger value="dark">
             Dark ({filteredDark.length})
           </TabsTrigger>
@@ -129,6 +133,12 @@ export default function RelayModulesView({ data }: Props) {
             Modules ({data.modules.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="gallery" className="space-y-4">
+          <BlockGalleryView
+            bindings={[...trulyConnected, ...data.darkBlocks, ...moduleLess]}
+          />
+        </TabsContent>
 
         <TabsContent value="dark" className="space-y-4">
           {filteredDark.length === 0 ? (

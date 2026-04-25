@@ -18,11 +18,26 @@ export default function ConnectedBlockCard({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             {hasDrift ? (
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <span title="Drift — this block reads fields that aren't in its schema. Open the schema viewer to align them.">
+                <AlertTriangle
+                  className="h-4 w-4 text-amber-500"
+                  aria-label="Schema drift"
+                />
+              </span>
             ) : block.moduleConnected ? (
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span title="Healthy — block + schema match, partner data present.">
+                <CheckCircle
+                  className="h-4 w-4 text-green-500"
+                  aria-label="Healthy binding"
+                />
+              </span>
             ) : (
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <span title="Block binds a module but the module has no items yet.">
+                <Package
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-label="No data"
+                />
+              </span>
             )}
             {block.blockLabel}
           </CardTitle>
