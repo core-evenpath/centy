@@ -2,17 +2,19 @@
 
 // ── Client orchestrator for /admin/relay/data ───────────────────────────
 //
-// Owns the vertical filter + active tab state, then hands the
-// filtered rows to the card components. Stays thin — each card lives
-// in its own file.
+// Owns the vertical + sub-vertical filter and active-tab state, then
+// hands the filtered rows to the card components. Stays thin — each
+// card lives in its own file.
 
 import { useMemo, useState } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { RelayModuleAnalytics } from '@/lib/relay/module-analytics-types';
+import { ALL_SUB_VERTICALS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 import SummaryCards from './SummaryCards';
 import VerticalFilter from './VerticalFilter';
+import SubVerticalFilter from './SubVerticalFilter';
 import DarkBlockCard from './DarkBlockCard';
 import ConnectedBlockCard from './ConnectedBlockCard';
 import ModuleCard from './ModuleCard';
@@ -24,6 +26,7 @@ interface Props {
 
 export default function RelayModulesView({ data }: Props) {
   const [verticalFilter, setVerticalFilter] = useState<string | null>(null);
+  const [subVerticalFilter, setSubVerticalFilter] = useState<string | null>(null);
 
   const verticals = useMemo(() => {
     const set = new Set<string>();
@@ -33,10 +36,15 @@ export default function RelayModulesView({ data }: Props) {
     return Array.from(set).sort();
   }, [data.connectedBlocks, data.darkBlocks]);
 
-  // PR D: split `connectedBlocks` into "truly connected" (module-backed
-  // with items) and "module-less" (module === null). The upstream
-  // analytics action still returns both under `connectedBlocks` so the
-  // old UI didn't break on PR B — we rebucket client-side here.
+  // Sub-vertical → allowed block IDs. When a sub-vertical is selected,
+  // only bindings whose blockId appears in that sub-vertical's
+  // `blocks: string[]` survive the filter.
+  const allowedBlockIds = useMemo(() => {
+    if (!subVerticalFilter) return null;
+    const sv = ALL_SUB_VERTICALS_DATA.find((s) => s.id === subVerticalFilter);
+    return sv ? new Set(sv.blocks) : null;
+  }, [subVerticalFilter]);
+
   const trulyConnected = useMemo(
     () => data.connectedBlocks.filter((b) => b.moduleSlug !== null),
     [data.connectedBlocks],
@@ -46,22 +54,30 @@ export default function RelayModulesView({ data }: Props) {
     [data.connectedBlocks],
   );
 
-  const filterByVertical = <T extends { verticals: string[] }>(
+  const filterRows = <T extends { verticals: string[]; blockId: string }>(
     rows: T[],
-  ): T[] =>
-    verticalFilter ? rows.filter((r) => r.verticals.includes(verticalFilter)) : rows;
+  ): T[] => {
+    let out = rows;
+    if (verticalFilter) {
+      out = out.filter((r) => r.verticals.includes(verticalFilter));
+    }
+    if (allowedBlockIds) {
+      out = out.filter((r) => allowedBlockIds.has(r.blockId));
+    }
+    return out;
+  };
 
   const filteredConnected = useMemo(
-    () => filterByVertical(trulyConnected),
-    [trulyConnected, verticalFilter],
+    () => filterRows(trulyConnected),
+    [trulyConnected, verticalFilter, allowedBlockIds],
   );
   const filteredDark = useMemo(
-    () => filterByVertical(data.darkBlocks),
-    [data.darkBlocks, verticalFilter],
+    () => filterRows(data.darkBlocks),
+    [data.darkBlocks, verticalFilter, allowedBlockIds],
   );
   const filteredModuleLess = useMemo(
-    () => filterByVertical(moduleLess),
-    [moduleLess, verticalFilter],
+    () => filterRows(moduleLess),
+    [moduleLess, verticalFilter, allowedBlockIds],
   );
 
   // Drift count across every module-backed binding — surfaces the
@@ -86,11 +102,17 @@ export default function RelayModulesView({ data }: Props) {
         </div>
       )}
 
-      <VerticalFilter
-        verticals={verticals}
-        active={verticalFilter}
-        onChange={setVerticalFilter}
-      />
+      <div className="flex flex-col gap-2">
+        <VerticalFilter
+          verticals={verticals}
+          active={verticalFilter}
+          onChange={setVerticalFilter}
+        />
+        <SubVerticalFilter
+          active={subVerticalFilter}
+          onChange={setSubVerticalFilter}
+        />
+      </div>
 
       <Tabs defaultValue="dark" className="space-y-4">
         <TabsList>

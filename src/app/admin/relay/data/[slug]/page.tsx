@@ -61,6 +61,17 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
   const consumerBlocks = getBlocksForModule(slug, ALL_BLOCKS_DATA);
   const engines = getEnginesForModule(slug, ALL_BLOCKS_DATA);
 
+  // Surface provenance: when this schema was last derived from the
+  // block registry, and when it was last enriched by AI. Helps admin
+  // see freshness and trace which generation produced the current
+  // shape. Both fields are optional — older docs may have neither.
+  const generatedAt = (schema as unknown as { generatedFromRegistryAt?: string })
+    .generatedFromRegistryAt;
+  const enrichedAt = (schema as unknown as { lastEnrichedAt?: string })
+    .lastEnrichedAt;
+  const enrichedModel = (schema as unknown as { lastEnrichedModel?: string })
+    .lastEnrichedModel;
+
   return (
     <div className="container mx-auto py-4 px-6 flex flex-col gap-4">
       <RelaySubNav />
@@ -76,11 +87,29 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
         </Link>
       </Button>
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm text-muted-foreground">
-          {schema.schema?.fields?.length ?? 0} fields ·{' '}
-          {consumerBlocks.length} consumer block
-          {consumerBlocks.length === 1 ? '' : 's'}
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="text-sm text-muted-foreground space-y-0.5">
+          <div>
+            {schema.schema?.fields?.length ?? 0} fields ·{' '}
+            {consumerBlocks.length} consumer block
+            {consumerBlocks.length === 1 ? '' : 's'}
+          </div>
+          <div className="text-[11px] text-muted-foreground/80 flex flex-wrap gap-x-3">
+            {generatedAt && (
+              <span title={generatedAt}>
+                Generated <strong>{formatStamp(generatedAt)}</strong>
+              </span>
+            )}
+            {enrichedAt && (
+              <span title={enrichedAt}>
+                AI-enriched <strong>{formatStamp(enrichedAt)}</strong>
+                {enrichedModel ? ` · ${enrichedModel}` : ''}
+              </span>
+            )}
+            {!generatedAt && !enrichedAt && (
+              <span className="italic">No generation provenance recorded.</span>
+            )}
+          </div>
         </div>
         <EnrichButton slug={slug} />
       </div>
@@ -99,4 +128,22 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
       </div>
     </div>
   );
+}
+
+// Concise relative-or-absolute formatter for the provenance line.
+// "5m ago" / "2h ago" / "3d ago" for recent stamps; falls back to a
+// short locale date for older ones so it stays readable without
+// bringing in a date library.
+function formatStamp(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  const diffMs = Date.now() - t;
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < 30 * 1000) return 'just now';
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+  if (diffMs < 30 * day) return `${Math.floor(diffMs / day)}d ago`;
+  return new Date(t).toLocaleDateString();
 }
