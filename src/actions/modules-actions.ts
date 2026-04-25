@@ -613,14 +613,50 @@ export async function getPartnerModuleAction(
     moduleSlug: string
 ): Promise<ModulesActionResponse<{ partnerModule: PartnerModule; systemModule: SystemModule }>> {
     try {
-        const partnerModuleSnapshot = await adminDb
+        // PR fix-19a: schema lookup (now resolved against relaySchemas
+        // via getSystemModuleAction's Relay-aware path) drives the
+        // partnerModule auto-provision below. The partner page used to
+        // hard-fail when no partnerModule existed for a slug, even
+        // though the schema in relaySchemas was perfectly valid — that
+        // turned every "click a schema card on /partner/relay/data"
+        // into a broken page. Now we look up the schema first; if it
+        // exists, we ensure a partnerModule alongside it.
+
+        const systemModuleResult = await getSystemModuleAction(moduleSlug);
+        if (!systemModuleResult.success || !systemModuleResult.data) {
+            return { success: false, error: 'Schema not found', code: 'NOT_FOUND' };
+        }
+
+        let partnerModuleSnapshot = await adminDb
             .collection(`partners/${partnerId}/businessModules`)
             .where('moduleSlug', '==', moduleSlug)
             .limit(1)
             .get();
 
         if (partnerModuleSnapshot.empty) {
-            return { success: false, error: 'Module not enabled for this partner', code: 'NOT_FOUND' };
+            // Auto-provision: with the relaySchemas model, schemas are
+            // intrinsic to the partner's business — no manual "enable"
+            // step. Create the partnerModule lazily on first visit.
+            const enableRes = await enablePartnerModuleAction(partnerId, moduleSlug);
+            if (!enableRes.success) {
+                return {
+                    success: false,
+                    error: enableRes.error || 'Could not auto-provision module',
+                    code: 'NOT_FOUND',
+                };
+            }
+            partnerModuleSnapshot = await adminDb
+                .collection(`partners/${partnerId}/businessModules`)
+                .where('moduleSlug', '==', moduleSlug)
+                .limit(1)
+                .get();
+            if (partnerModuleSnapshot.empty) {
+                return {
+                    success: false,
+                    error: 'Module provisioned but could not be re-fetched',
+                    code: 'NOT_FOUND',
+                };
+            }
         }
 
         const pmData = partnerModuleSnapshot.docs[0].data();
@@ -629,12 +665,6 @@ export async function getPartnerModuleAction(
             ...pmData,
             customFields: normalizeCustomFields(pmData.customFields),
         } as PartnerModule;
-
-        const systemModuleResult = await getSystemModuleAction(moduleSlug);
-
-        if (!systemModuleResult.success || !systemModuleResult.data) {
-            return { success: false, error: 'System module not found', code: 'NOT_FOUND' };
-        }
 
         return {
             success: true,
@@ -701,10 +731,19 @@ export async function enablePartnerModuleAction(
             .doc(moduleId)
             .set(partnerModule);
 
-        await adminDb.collection('systemModules').doc(systemModule.id).update({
-            usageCount: FieldValue.increment(1),
-            lastUsedAt: now,
-        });
+        // PR fix-19a: tolerate missing systemModules doc — the schema
+        // may live in relaySchemas (the canonical store post-fix-16a),
+        // in which case there's nothing to increment in systemModules.
+        // Silently skip rather than fail enable.
+        try {
+            await adminDb.collection('systemModules').doc(systemModule.id).update({
+                usageCount: FieldValue.increment(1),
+                lastUsedAt: now,
+            });
+        } catch {
+            // Schema lives in relaySchemas — usage tracking moves there
+            // (or simply isn't tracked on the partner-side flow). No-op.
+        }
 
         const defaultCategories = systemModule.schema.categories;
         const categoriesBatch = adminDb.batch();
