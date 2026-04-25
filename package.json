@@ -12,7 +12,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:currency": "node scripts/check-block-currency-reads.js && node scripts/check-hardcoded-currency.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
