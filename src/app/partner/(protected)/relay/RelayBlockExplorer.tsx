@@ -99,7 +99,9 @@ export default function RelayBlockExplorer({ partnerId, defaultFunctionId }: Pro
       const key = b.id;
       if (previewData[key] !== undefined || previewLoading[key]) continue;
       setPreviewLoading(prev => ({ ...prev, [key]: true }));
-      getBlockPreviewDataAction(partnerId, b.id)
+      // Block explorer renders against partner's actual data — opt
+      // into live mode (PR fix-16a default flipped to 'sample').
+      getBlockPreviewDataAction(partnerId, b.id, 'live')
         .then(res => {
           if (res.success) {
             setPreviewData(prev => ({ ...prev, [key]: res.data }));
