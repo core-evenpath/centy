@@ -306,20 +306,6 @@ export async function seedAllVerticalSchemasAction(
     const identity = persona?.identity ?? {};
     const vertical = derivePartnerVertical(identity);
 
-    // PR fix-24: full partner context for the AI prompt.
-    const seedCtx = {
-      vertical: vertical ?? null,
-      category: deriveCategoryLabel(identity) ?? null,
-      country:
-        typeof identity?.address?.country === 'string'
-          ? identity.address.country
-          : null,
-      currency:
-        typeof identity?.currency === 'string' ? identity.currency : null,
-      brandName:
-        typeof identity?.name === 'string' ? identity.name : null,
-    };
-
     if (!vertical) {
       return {
         success: false,
@@ -384,7 +370,6 @@ export async function seedAllVerticalSchemasAction(
         try {
           const res = await seedSampleItemsAction(partnerId, slug, userId, {
             skipIfItemsExist: true,
-            ctx: seedCtx,
           });
           if (!res.success) {
             return {

@@ -21,8 +21,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  ChevronDown,
-  ChevronRight,
   Database,
   AlertCircle,
   Globe,
@@ -40,28 +38,6 @@ import { TestChatSeedSampleCTA } from '../test-chat/_TestChatSeedSampleCTA';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  RELAY_VERTICALS,
-  type RelayVertical,
-} from '@/lib/relay/relay-verticals';
-
-const VERTICAL_LABELS: Record<RelayVertical, string> = {
-  automotive: 'Automotive',
-  business: 'Business / Professional Services',
-  ecommerce: 'E-commerce',
-  education: 'Education',
-  events_entertainment: 'Events & Entertainment',
-  financial_services: 'Financial Services',
-  food_beverage: 'Food & Beverage',
-  food_supply: 'Food Supply',
-  healthcare: 'Healthcare',
-  home_property: 'Home & Property',
-  hospitality: 'Hospitality',
-  personal_wellness: 'Personal Wellness',
-  public_nonprofit: 'Public / Nonprofit',
-  travel_transport: 'Travel & Transport',
-  shared: 'Shared (cross-vertical)',
-};
 
 export default function PartnerRelayDataPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
@@ -69,7 +45,6 @@ export default function PartnerRelayDataPage() {
 
   const [state, setState] = useState<PartnerSchemasResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Set<RelayVertical>>(new Set());
 
   useEffect(() => {
     if (!partnerId) {
@@ -80,44 +55,22 @@ export default function PartnerRelayDataPage() {
     listPartnerSchemasAction(partnerId)
       .then((res) => {
         setState(res);
-        // Auto-expand partner's primary vertical (and 'shared' since
-        // those apply to everyone). Other verticals collapsed.
-        const next = new Set<RelayVertical>(['shared']);
-        if (res.partnerVertical) next.add(res.partnerVertical);
-        setExpanded(next);
       })
       .finally(() => setLoading(false));
   }, [partnerId]);
 
-  // Bucket schemas by vertical (preserve action-side sort order).
-  const groups = useMemo(() => {
-    const map = new Map<RelayVertical | 'orphan', PartnerSchemaCard[]>();
-    for (const s of state?.schemas ?? []) {
-      const key: RelayVertical | 'orphan' = s.vertical ?? 'orphan';
-      const arr = map.get(key) ?? [];
-      arr.push(s);
-      map.set(key, arr);
-    }
-    // Stable order: RELAY_VERTICALS order, then 'orphan' last.
-    const out: { key: RelayVertical | 'orphan'; schemas: PartnerSchemaCard[] }[] = [];
-    for (const v of RELAY_VERTICALS) {
-      if (map.has(v)) out.push({ key: v, schemas: map.get(v)! });
-    }
-    if (map.has('orphan')) out.push({ key: 'orphan', schemas: map.get('orphan')! });
-    return out;
+  // PR fix-25: render only schemas that match the partner's vertical
+  // (or are 'shared' / cross-vertical). Other verticals' schemas are
+  // hidden — they'd be irrelevant noise on the partner page.
+  const visibleSchemas = useMemo(() => {
+    const partnerVertical = state?.partnerVertical;
+    return (state?.schemas ?? []).filter(
+      (s) => s.vertical === partnerVertical || s.vertical === 'shared',
+    );
   }, [state]);
 
-  const toggleVertical = (v: RelayVertical) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(v)) next.delete(v);
-      else next.add(v);
-      return next;
-    });
-  };
-
-  const totalSchemas = state?.schemas?.length ?? 0;
-  const totalWithItems = state?.schemas?.filter((s) => s.itemCount > 0).length ?? 0;
+  const totalSchemas = visibleSchemas.length;
+  const totalWithItems = visibleSchemas.filter((s) => s.itemCount > 0).length;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -166,54 +119,14 @@ export default function PartnerRelayDataPage() {
           <StatsBanner
             totalSchemas={totalSchemas}
             totalWithItems={totalWithItems}
-            totalItems={state.schemas?.reduce((sum, s) => sum + s.itemCount, 0) ?? 0}
+            totalItems={visibleSchemas.reduce((sum, s) => sum + s.itemCount, 0)}
           />
 
-          {groups.map(({ key, schemas }) => {
-            const isVertical = key !== 'orphan';
-            const label = isVertical ? VERTICAL_LABELS[key] : 'Other';
-            const isOpen = !isVertical || expanded.has(key);
-            const isPrimary = state.partnerVertical === key;
-
-            return (
-              <Card key={key}>
-                <button
-                  type="button"
-                  onClick={() => isVertical && toggleVertical(key)}
-                  className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                  disabled={!isVertical}
-                >
-                  <div className="flex items-center gap-2">
-                    {isVertical ? (
-                      isOpen ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )
-                    ) : null}
-                    <span className="font-semibold text-sm">{label}</span>
-                    <Badge variant="outline" className="text-[10px]">
-                      {schemas.length} schema{schemas.length === 1 ? '' : 's'}
-                    </Badge>
-                    {isPrimary && (
-                      <Badge className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
-                        Your category
-                      </Badge>
-                    )}
-                  </div>
-                </button>
-                {isOpen && (
-                  <CardContent className="pt-0 pb-4">
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      {schemas.map((s) => (
-                        <SchemaCard key={s.slug} schema={s} />
-                      ))}
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {visibleSchemas.map((s) => (
+              <SchemaCard key={s.slug} schema={s} />
+            ))}
+          </div>
         </>
       )}
     </div>

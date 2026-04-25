@@ -27,10 +27,6 @@ import {
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleItem } from '@/lib/modules/types';
 import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
-import {
-    generateSampleItemsViaAIAction,
-    type PartnerSeedContext,
-} from '@/actions/relay-sample-data-ai';
 
 type SampleItem = Partial<ModuleItem>;
 
@@ -157,16 +153,38 @@ async function deriveSampleItemsFromSchema(
                         break;
                     default:
                         // Type-based fallback for unknown field names.
-                        if (ftype === 'number' || ftype === 'currency') {
-                            value = i;
+                        // PR fix-25: harden coverage — every type
+                        // produces a non-null value so admin-defined
+                        // schema fields always land in Firestore.
+                        if (ftype === 'number' || ftype === 'currency' || ftype === 'duration') {
+                            value = [19.99, 29.99, 39.99][i - 1] ?? i;
                         } else if (ftype === 'toggle') {
                             value = true;
-                        } else if (ftype === 'tags' || ftype === 'images') {
-                            value = [];
+                        } else if (ftype === 'tags' || ftype === 'multi_select') {
+                            value = i === 1 ? ['sample'] : [];
+                        } else if (ftype === 'images') {
+                            value = [`https://placehold.co/600x400?text=Sample+${i}`];
+                        } else if (ftype === 'image' || ftype === 'url') {
+                            value = `https://example.com/sample-${i}`;
+                        } else if (ftype === 'email') {
+                            value = `sample${i}@example.com`;
+                        } else if (ftype === 'phone') {
+                            value = `+1-555-010${i}`;
                         } else if (ftype === 'date') {
-                            value = new Date().toISOString().slice(0, 10);
+                            value = new Date(Date.now() + i * 86_400_000)
+                                .toISOString()
+                                .slice(0, 10);
+                        } else if (ftype === 'select') {
+                            // No way to know option labels here; pick a
+                            // plausible default keyed by field name.
+                            value = `Option ${i}`;
+                        } else if (ftype === 'rating') {
+                            value = [4.5, 4.7, 4.9][i - 1] ?? 4.5;
                         } else {
-                            value = `Demo ${fname} ${i}`;
+                            // text / textarea / unknown — use the field
+                            // label when present for a more human result.
+                            const label = (f.label as string | undefined) || fname;
+                            value = `Sample ${label} ${i}`;
                         }
                 }
                 // ModuleItem has top-level slots for a few canonical fields;
@@ -201,44 +219,21 @@ export async function seedSampleItemsAction(
     userId: string,
     options?: {
         skipIfItemsExist?: boolean;
-        /** Partner identity context to feed Gemini. PR fix-24. */
-        ctx?: PartnerSeedContext;
-        /** Force the deterministic generator (skips Gemini). Useful
-         *  for tests + offline fallback. */
-        deterministicOnly?: boolean;
     },
 ): Promise<{
     success: boolean;
     created?: number;
     enabled?: boolean;
-    source?: 'ai' | 'deterministic';
     error?: string;
 }> {
     try {
-        // PR fix-24: Gemini-first item generation (matching the
-        // /admin/relay/data enrichment flow). Falls back to the
-        // deterministic schema-derived generator from PR fix-19b/22
-        // when AI is unavailable (no API key, network failure,
-        // unrecognized response shape) so seed never silently no-ops.
-        let items: SampleItem[] | null = null;
-        let source: 'ai' | 'deterministic' = 'deterministic';
-        if (!options?.deterministicOnly) {
-            const aiRes = await generateSampleItemsViaAIAction(
-                moduleSlug,
-                options?.ctx ?? {},
-            );
-            if (aiRes.success && aiRes.items && aiRes.items.length > 0) {
-                items = aiRes.items as SampleItem[];
-                source = 'ai';
-            } else if (aiRes.error) {
-                console.warn(
-                    `[sample-data] AI generation failed for "${moduleSlug}", falling back to deterministic. Error: ${aiRes.error}`,
-                );
-            }
-        }
-        if (!items) {
-            items = await deriveSampleItemsFromSchema(moduleSlug);
-        }
+        // PR fix-25: deterministic-only. The schema fields at
+        // /admin/relay/data are already AI-curated (admin enrichment
+        // step). Partner-side just populates those fields with
+        // type-appropriate values. No second AI pass — the previous
+        // Gemini-first path silently dropped fields when the model
+        // omitted them. Now every schema field always gets a value.
+        const items = await deriveSampleItemsFromSchema(moduleSlug);
         if (!items || items.length === 0) {
             return {
                 success: false,
@@ -279,7 +274,6 @@ export async function seedSampleItemsAction(
             success: true,
             created: res.data?.created ?? 0,
             enabled: didEnable,
-            source,
         };
     } catch (err: any) {
         console.error('[sample-data] seedSampleItemsAction failed:', err);
