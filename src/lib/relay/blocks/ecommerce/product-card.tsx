@@ -2,6 +2,7 @@
 
 import type { BlockDefinition, BlockComponentProps } from '../../types';
 import { Star, ShoppingBag, Heart, Bell } from 'lucide-react';
+import { formatMoney } from '@/lib/currency';
 
 export const definition: BlockDefinition = {
   id: 'ecom_product_card',
@@ -44,8 +45,8 @@ export const definition: BlockDefinition = {
   cacheDuration: 300,
 };
 
-function formatCurrency(amount: number): string {
-  return '₹' + amount.toLocaleString('en-IN');
+function formatCurrency(amount: number, currency: string): string {
+  return formatMoney(amount, currency);
 }
 
 function RatingStars({ rating, theme }: { rating: number; theme: BlockComponentProps['theme'] }) {
@@ -66,6 +67,9 @@ function RatingStars({ rating, theme }: { rating: number; theme: BlockComponentP
 
 export default function ProductCardBlock({ data, theme }: BlockComponentProps) {
   const items: Array<Record<string, any>> = data.items || [];
+  // Currency comes from the data envelope (partner-level). Falls back
+  // to INR for legacy data shapes that haven't been region-tagged yet.
+  const currency: string = data.currency ?? 'INR';
 
   if (items.length === 0) {
     return (
@@ -129,9 +133,9 @@ export default function ProductCardBlock({ data, theme }: BlockComponentProps) {
               {item.brand && <div style={{ fontSize: '10px', color: theme.t3, marginBottom: '2px' }}>{item.brand}</div>}
               <div style={{ fontSize: '13px', fontWeight: 600, color: theme.t1, marginBottom: '4px' }}>{item.name}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: theme.accent }}>{formatCurrency(item.price)}</span>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: theme.accent }}>{formatCurrency(item.price, currency)}</span>
                 {item.mrp && item.mrp > item.price && (
-                  <span style={{ fontSize: '11px', color: theme.t4, textDecoration: 'line-through' }}>{formatCurrency(item.mrp)}</span>
+                  <span style={{ fontSize: '11px', color: theme.t4, textDecoration: 'line-through' }}>{formatCurrency(item.mrp, currency)}</span>
                 )}
                 {discount > 0 && (
                   <span style={{ fontSize: '10px', fontWeight: 600, color: theme.green, background: theme.greenBg, padding: '1px 5px', borderRadius: '4px' }}>

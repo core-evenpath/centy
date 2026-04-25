@@ -1,5 +1,6 @@
 import { customAlphabet } from 'nanoid';
 import type { ModuleFieldDefinition, ModuleSchema, ModuleMigration, ModuleItem } from './types';
+import { formatMoney } from '@/lib/currency';
 
 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
@@ -198,14 +199,15 @@ export function generateRAGText(item: ModuleItem, schema: ModuleSchema): string 
     return parts.join('. ');
 }
 
+/**
+ * @deprecated Prefer `formatMoney(amount, currency)` from
+ * `@/lib/currency` directly — it's the canonical helper with
+ * region-aware locale and zero-decimal handling for JPY/KRW. This
+ * wrapper exists only so existing imports keep working until
+ * callsites migrate.
+ */
 export function formatCurrency(amount: number, currency: string = 'INR'): string {
-    return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-
-    }).format(amount);
+    return formatMoney(amount, currency);
 }
 
 export function cleanAndParseJSON(text: string): any {

@@ -565,16 +565,11 @@ export function getSupportedCountries(): Array<{ code: SupportedCountry; name: s
     ];
 }
 
-/**
- * Format currency amount according to country config
- */
-export function formatCurrency(amount: number, countryCode?: string): string {
-    const config = getCountryConfig(countryCode);
-    const formatted = amount.toLocaleString(config.locale);
-    return config.currency.position === 'before'
-        ? `${config.currency.symbol}${formatted}`
-        : `${formatted} ${config.currency.symbol}`;
-}
+// formatCurrency removed (PR fix-14): exported but never imported by
+// any consumer. The canonical formatter is `formatMoney(amount,
+// currency)` in `src/lib/currency.ts` — country code is no longer the
+// right key. Use `countryToRegion` + `regionToDefaultCurrency` from
+// the currency module if you need a country → currency derivation.
 
 /**
  * Get phone format prefix for a country
