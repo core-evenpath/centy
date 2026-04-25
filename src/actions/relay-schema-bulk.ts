@@ -37,7 +37,13 @@ export interface VerticalEnrichResult {
     slug: string;
     deterministicFields: number;
     aiFields: number;
-    skipped?: string;
+    /**
+     * True when consumer blocks had no reads[] annotated and the
+     * deterministic seed used universal defaults
+     * (name / description / image_url). These schemas leaned the
+     * most on AI enrichment for their final shape.
+     */
+    seededFromDefaults?: boolean;
     error?: string;
   }>;
   error?: string;
@@ -63,16 +69,10 @@ export async function generateAndEnrichVerticalAction(
 
     for (const [slug, blocks] of blocksBySlug) {
       // 1. Deterministic seed — overwrites the schema. Idempotent.
+      // Always succeeds: if no consumer blocks have reads[] annotated,
+      // the helper falls back to universal defaults (PR-fix-5) so the
+      // schema doc always exists for AI enrichment to attach to.
       const seed = await writeRelaySchemaFromBlocks(slug, blocks);
-      if ('skipped' in seed) {
-        schemas.push({
-          slug,
-          deterministicFields: 0,
-          aiFields: 0,
-          skipped: seed.reason,
-        });
-        continue;
-      }
 
       // 2. Ask Gemini for additional fields. Failures don't abort
       // the whole vertical — record per-schema error and move on.
@@ -82,6 +82,7 @@ export async function generateAndEnrichVerticalAction(
           slug,
           deterministicFields: seed.fieldCount,
           aiFields: 0,
+          seededFromDefaults: seed.seededFromDefaults,
           error: enriched.error,
         });
         continue;
@@ -101,6 +102,7 @@ export async function generateAndEnrichVerticalAction(
         slug,
         deterministicFields: seed.fieldCount,
         aiFields,
+        seededFromDefaults: seed.seededFromDefaults,
       });
     }
 

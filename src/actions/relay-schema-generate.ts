@@ -123,28 +123,47 @@ function buildSchemaFields(fieldNames: string[]): ModuleFieldDefinition[] {
 // ── Per-slug helper (shared with the per-vertical bulk path) ───────
 //
 // Writes one Relay schema deterministically. Returns a
-// `{ slug, name, fieldCount, blockCount }` summary or null when the
-// slug has no annotated reads[]. Exported so PR-fix-1's
-// generateAndEnrichVerticalAction can reuse the exact same write
-// path — no two-implementations-of-the-same-thing risk.
+// `{ slug, name, fieldCount, blockCount, seededFromDefaults }`
+// summary. Exported so generateAndEnrichVerticalAction can reuse
+// the exact same write path — no two-implementations-of-the-same-
+// thing risk.
+//
+// Behaviour when consumer blocks have no reads[] annotations:
+// previously this path returned a "skipped" outcome — which left
+// the schema doc nonexistent and made the bulk vertical run report
+// "No blocks declare reads[]". That broke AI enrichment for the
+// affected slugs (Gemini can't enrich a doc that doesn't exist).
+// Now the helper seeds with three universal defaults
+// (name / description / image_url) so the schema always exists.
+// AI enrichment will expand from the block descriptions in the
+// follow-up step. The result flags `seededFromDefaults: true` so
+// the bulk-action UI can show admin which schemas got the fallback.
+
 export interface PerSlugResult {
   slug: string;
   name: string;
   fieldCount: number;
   blockCount: number;
+  /**
+   * True when the consumer blocks had no `reads[]` annotated and the
+   * helper fell back to a universal default seed. AI enrichment will
+   * flesh these schemas out the most.
+   */
+  seededFromDefaults: boolean;
 }
+
+const DEFAULT_SEED_FIELDS: ReadonlyArray<string> = ['name', 'description', 'image_url'];
 
 export async function writeRelaySchemaFromBlocks(
   slug: string,
   blocks: ReadonlyArray<ServerBlockData>,
-): Promise<PerSlugResult | { skipped: true; reason: string }> {
-  const fieldNames = unionReads(blocks);
-  if (fieldNames.length === 0) {
-    return {
-      skipped: true,
-      reason: 'No blocks declare reads[] for this slug yet.',
-    };
-  }
+): Promise<PerSlugResult> {
+  const annotatedReads = unionReads(blocks);
+  const seededFromDefaults = annotatedReads.length === 0;
+  const fieldNames = seededFromDefaults
+    ? [...DEFAULT_SEED_FIELDS]
+    : annotatedReads;
+
   const schemaFields = buildSchemaFields(fieldNames);
   const name = humanizeSlug(slug);
   const now = new Date().toISOString();
@@ -157,9 +176,13 @@ export async function writeRelaySchemaFromBlocks(
         id: slug,
         slug,
         name,
-        description: `Auto-generated from ${blocks.length} Relay block${
-          blocks.length === 1 ? '' : 's'
-        }. Field list is the union of block.reads[] across consumers.`,
+        description: seededFromDefaults
+          ? `Auto-generated from ${blocks.length} Relay block${
+              blocks.length === 1 ? '' : 's'
+            }. Seeded with universal defaults — no reads[] annotated; AI enrichment expands from block descriptions.`
+          : `Auto-generated from ${blocks.length} Relay block${
+              blocks.length === 1 ? '' : 's'
+            }. Field list is the union of block.reads[] across consumers.`,
         icon: '📦',
         color: '#6366f1',
         currentVersion: 1,
@@ -195,6 +218,7 @@ export async function writeRelaySchemaFromBlocks(
     name,
     fieldCount: schemaFields.length,
     blockCount: blocks.length,
+    seededFromDefaults,
   };
 }
 
