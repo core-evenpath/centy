@@ -27,6 +27,10 @@ import {
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleItem } from '@/lib/modules/types';
 import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
+import {
+    generateSampleItemsViaAIAction,
+    type PartnerSeedContext,
+} from '@/actions/relay-sample-data-ai';
 
 type SampleItem = Partial<ModuleItem>;
 
@@ -195,23 +199,50 @@ export async function seedSampleItemsAction(
     partnerId: string,
     moduleSlug: string,
     userId: string,
-    options?: { skipIfItemsExist?: boolean },
+    options?: {
+        skipIfItemsExist?: boolean;
+        /** Partner identity context to feed Gemini. PR fix-24. */
+        ctx?: PartnerSeedContext;
+        /** Force the deterministic generator (skips Gemini). Useful
+         *  for tests + offline fallback. */
+        deterministicOnly?: boolean;
+    },
 ): Promise<{
     success: boolean;
     created?: number;
     enabled?: boolean;
+    source?: 'ai' | 'deterministic';
     error?: string;
 }> {
     try {
-        // PR fix-21: single source of truth — every slug routes through
-        // deriveSampleItemsFromSchema. The legacy SAMPLE_ITEMS_BY_SLUG
-        // curated demos went away because they only covered 3 slugs
-        // and used stale (pre-vertical-prefix) names.
-        const items = await deriveSampleItemsFromSchema(moduleSlug);
+        // PR fix-24: Gemini-first item generation (matching the
+        // /admin/relay/data enrichment flow). Falls back to the
+        // deterministic schema-derived generator from PR fix-19b/22
+        // when AI is unavailable (no API key, network failure,
+        // unrecognized response shape) so seed never silently no-ops.
+        let items: SampleItem[] | null = null;
+        let source: 'ai' | 'deterministic' = 'deterministic';
+        if (!options?.deterministicOnly) {
+            const aiRes = await generateSampleItemsViaAIAction(
+                moduleSlug,
+                options?.ctx ?? {},
+            );
+            if (aiRes.success && aiRes.items && aiRes.items.length > 0) {
+                items = aiRes.items as SampleItem[];
+                source = 'ai';
+            } else if (aiRes.error) {
+                console.warn(
+                    `[sample-data] AI generation failed for "${moduleSlug}", falling back to deterministic. Error: ${aiRes.error}`,
+                );
+            }
+        }
+        if (!items) {
+            items = await deriveSampleItemsFromSchema(moduleSlug);
+        }
         if (!items || items.length === 0) {
             return {
                 success: false,
-                error: `No sample items available for "${moduleSlug}" (schema not found in relaySchemas).`,
+                error: `No sample items available for "${moduleSlug}".`,
             };
         }
 
@@ -244,7 +275,12 @@ export async function seedSampleItemsAction(
         if (!res.success) {
             return { success: false, error: res.error || 'Failed to create sample items' };
         }
-        return { success: true, created: res.data?.created ?? 0, enabled: didEnable };
+        return {
+            success: true,
+            created: res.data?.created ?? 0,
+            enabled: didEnable,
+            source,
+        };
     } catch (err: any) {
         console.error('[sample-data] seedSampleItemsAction failed:', err);
         return { success: false, error: err?.message ?? 'unknown' };
