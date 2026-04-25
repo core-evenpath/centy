@@ -137,6 +137,7 @@ export default function RelayModulesView({ data }: Props) {
         <TabsContent value="blocks" className="space-y-4">
           <BlockGalleryView
             bindings={scopedBindings}
+            modules={data.modules}
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
           />

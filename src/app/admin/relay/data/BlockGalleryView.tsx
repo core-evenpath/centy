@@ -12,7 +12,10 @@ import {
 import { setBlockSchemaBindingAction } from '@/actions/relay-block-binding';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { BlockModuleBinding } from '@/lib/relay/module-analytics-types';
+import type {
+  BlockModuleBinding,
+  ModuleBlockUsage,
+} from '@/lib/relay/module-analytics-types';
 
 // ── Block Gallery (PR fix-7 — status-aware) ─────────────────────────
 //
@@ -113,12 +116,20 @@ function deriveStatus(
 
 interface Props {
   bindings: BlockModuleBinding[];
+  /**
+   * Module → schemaFields lookup. Threaded through so each tile can
+   * render the FULL schema field universe with the block's own
+   * reads[] highlighted, instead of only showing reads[] (which is
+   * a narrow subset). PR fix-10.
+   */
+  modules: ModuleBlockUsage[];
   statusFilter: BlockStatus | 'all';
   onStatusFilterChange: (s: BlockStatus | 'all') => void;
 }
 
 export default function BlockGalleryView({
   bindings,
+  modules,
   statusFilter,
   onStatusFilterChange,
 }: Props) {
@@ -127,6 +138,15 @@ export default function BlockGalleryView({
     for (const b of bindings) m.set(b.blockId, b);
     return m;
   }, [bindings]);
+
+  // Slug → schema field list. Empty array if schema has no fields.
+  const schemaFieldsBySlug = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const mod of modules) {
+      m.set(mod.moduleSlug, mod.schemaFields ?? []);
+    }
+    return m;
+  }, [modules]);
 
   const [localBindings, setLocalBindings] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState<Set<string>>(new Set());
@@ -398,23 +418,14 @@ export default function BlockGalleryView({
                                 </div>
                               </div>
 
-                              {b.reads && b.reads.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {b.reads.slice(0, 6).map((r) => (
-                                    <span
-                                      key={r}
-                                      className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium border bg-background"
-                                    >
-                                      {r}
-                                    </span>
-                                  ))}
-                                  {b.reads.length > 6 && (
-                                    <span className="text-[10px] text-muted-foreground self-center">
-                                      +{b.reads.length - 6}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                              <SchemaFieldChips
+                                reads={b.reads ?? []}
+                                schemaFields={
+                                  b.module
+                                    ? schemaFieldsBySlug.get(b.module) ?? []
+                                    : []
+                                }
+                              />
                             </div>
                           );
                         })}
@@ -428,6 +439,132 @@ export default function BlockGalleryView({
         })
       )}
     </div>
+  );
+}
+
+// ── Schema field chips (PR fix-10) ─────────────────────────────────
+//
+// Replaces the old "show first 6 reads[]" chip strip. Now shows the
+// full schema field set with each chip styled to indicate whether
+// the block actually consumes it:
+//
+//   • Read     — block.reads includes this field (active blue chip)
+//   • Schema-only — schema has this field, block doesn't read it
+//                   yet (muted gray chip)
+//   • Drift    — block reads a field NOT in the schema (amber chip
+//                with a leading dot, signals broken contract)
+//
+// Why: the schema is the canonical contract; reads[] is just one
+// block's slice. Surfacing both side-by-side makes it obvious which
+// fields each block ignores and where reads[] has drifted from the
+// schema.
+
+function SchemaFieldChips({
+  reads,
+  schemaFields,
+}: {
+  reads: string[];
+  schemaFields: string[];
+}) {
+  const readSet = new Set(reads);
+  const schemaSet = new Set(schemaFields);
+
+  // Drift: things the block reads that aren't in the schema. Always
+  // surfaced first so admin notices the broken contract.
+  const driftFields = reads.filter((r) => !schemaSet.has(r));
+
+  // Empty universe: no schema fields AND no reads. Caller-side
+  // fallback so the tile doesn't stay blank.
+  if (schemaFields.length === 0 && reads.length === 0) return null;
+
+  // Schema-empty fallback: no relaySchemas doc yet — render reads[]
+  // as plain chips so we don't gate UI on schema generation.
+  if (schemaFields.length === 0) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {reads.slice(0, 8).map((r) => (
+          <Chip key={r} kind="read" label={r} />
+        ))}
+        {reads.length > 8 && (
+          <span className="text-[10px] text-muted-foreground self-center">
+            +{reads.length - 8}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <span className="font-medium">Schema</span>
+        <span>·</span>
+        <span>
+          {readSet.size} read{readSet.size === 1 ? '' : 's'} of{' '}
+          {schemaFields.length} field{schemaFields.length === 1 ? '' : 's'}
+        </span>
+        {driftFields.length > 0 && (
+          <>
+            <span>·</span>
+            <span className="text-amber-700">
+              {driftFields.length} drift
+            </span>
+          </>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {/* Drift fields first — they need attention. */}
+        {driftFields.map((f) => (
+          <Chip key={`drift-${f}`} kind="drift" label={f} />
+        ))}
+        {schemaFields.map((f) => (
+          <Chip
+            key={f}
+            kind={readSet.has(f) ? 'read' : 'schema_only'}
+            label={f}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Chip({
+  kind,
+  label,
+}: {
+  kind: 'read' | 'schema_only' | 'drift';
+  label: string;
+}) {
+  const styles = {
+    read:
+      'border-blue-200 bg-blue-50 text-blue-800',
+    schema_only:
+      'border-border bg-muted/40 text-muted-foreground',
+    drift:
+      'border-amber-300 bg-amber-50 text-amber-800',
+  }[kind];
+  const title = {
+    read: `Block reads "${label}" from the schema.`,
+    schema_only: `Schema has "${label}" but this block doesn't read it.`,
+    drift: `Block reads "${label}" but the schema has no such field — drift.`,
+  }[kind];
+  return (
+    <span
+      title={title}
+      className={[
+        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border',
+        styles,
+      ].join(' ')}
+    >
+      {kind === 'drift' && (
+        <span
+          className="h-1 w-1 rounded-full bg-amber-500"
+          aria-hidden
+        />
+      )}
+      {label}
+    </span>
   );
 }
 

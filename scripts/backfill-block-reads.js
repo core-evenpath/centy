@@ -1,31 +1,35 @@
-// Backfill `reads: [...]` on every block missing the annotation.
+// Backfill `reads: [...]` on every block.
 //
-// Context: PR C annotated reads[] on the 57 originally-module-backed
-// blocks. PR-fix-2 promoted the other 143 blocks from module-less to
-// module-backed (giving them schema slugs) but didn't backfill reads.
-// Result: those 143 tiles in the Block Gallery render with no reads
-// chips, which was confusing.
+// PR fix-10: the original backfill (PRs C/fix-5) only put 3-5
+// universal-ish fields on each block. The visual previews actually
+// render far more (Product Card shows price, currency, rating,
+// review_count, badges, variants, sku, etc.) so the "Schemas" tab and
+// the gallery's reads chips were under-reporting what backend each
+// block needs. This pass widens FAMILY_EXTRAS to cover what the
+// previews actually consume — so the schemas the page generates from
+// reads[] are a complete brief, not a 3-field stub.
 //
-// This script gives every block a reads[] using family-based
-// defaults. Idempotent — leaves existing reads[] alone, only adds
-// when missing.
+// Behaviour change: instead of skipping when reads[] already exists,
+// we now MERGE missing family-default fields into the existing array
+// (preserving order, deduping). That way previously-annotated blocks
+// pick up the new fields without losing any handcrafted entries.
 //
 // Family defaults (combined with universal):
 //   universal:                 name, description, image_url
-//   catalog/parts/service:     + price, category
-//   real_estate:               + price, subtitle
-//   people:                    + subtitle, badges
-//   proof / social_proof:      + rating, review_count
-//   booking:                   + date, time, service_name
-//   tracking / operations:     + status, last_updated
-//   commerce / conversion:     + price, cta_label
-//   marketing:                 + cta_label, expires_at
-//   info / navigation:         + (universal only)
-//   trust:                     + badges
-//   pricing / valuation:       + price, currency
+//   catalog/parts/service:     + price, currency, category, subtitle, rating, review_count, badges, variants, sku
+//   real_estate:               + price, currency, subtitle, badges, rating, review_count, square_feet, bedrooms
+//   people:                    + subtitle, badges, rating, review_count, specialties, years_experience
+//   proof / social_proof:      + rating, review_count, subtitle, badges, outcome_metric, completion_date
+//   booking:                   + date, time, service_name, status, duration, location, price
+//   tracking / operations:     + status, last_updated, eta, location, progress
+//   commerce / conversion:     + price, currency, cta_label, badges, discount_percent, original_price
+//   marketing:                 + cta_label, expires_at, headline, badges, discount_code
+//   info / navigation:         + cta_label, icon
+//   trust:                     + badges, rating, review_count, subtitle
+//   pricing / valuation:       + price, currency, subtitle, features, period
 //   engagement / packages /
 //     entertainment / venues /
-//     production / fleet / ev / etc:  (universal only)
+//     production / fleet / ev / etc:  + price, currency, badges, rating, review_count
 
 const fs = require('fs');
 const path = require('path');
@@ -43,22 +47,70 @@ const VERTICALS = [
 const UNIVERSAL = ['name', 'description', 'image_url'];
 
 const FAMILY_EXTRAS = {
-  catalog: ['price', 'category'],
-  parts: ['price', 'category'],
-  service: ['price', 'category'],
-  real_estate: ['price', 'subtitle'],
-  people: ['subtitle', 'badges'],
-  proof: ['rating', 'review_count'],
-  social_proof: ['rating', 'review_count'],
-  booking: ['date', 'time', 'service_name'],
-  tracking: ['status', 'last_updated'],
-  operations: ['status', 'last_updated'],
-  commerce: ['price', 'cta_label'],
-  conversion: ['price', 'cta_label'],
-  marketing: ['cta_label', 'expires_at'],
-  trust: ['badges'],
-  pricing: ['price', 'currency'],
-  valuation: ['price', 'currency'],
+  catalog: [
+    'price', 'currency', 'category', 'subtitle',
+    'rating', 'review_count', 'badges', 'variants', 'sku',
+  ],
+  parts: [
+    'price', 'currency', 'category', 'subtitle',
+    'rating', 'review_count', 'badges', 'sku', 'in_stock',
+  ],
+  service: [
+    'price', 'currency', 'category', 'subtitle',
+    'rating', 'review_count', 'badges', 'duration',
+  ],
+  real_estate: [
+    'price', 'currency', 'subtitle', 'badges',
+    'rating', 'review_count', 'square_feet', 'bedrooms', 'bathrooms', 'address',
+  ],
+  people: [
+    'subtitle', 'badges', 'rating', 'review_count',
+    'specialties', 'years_experience', 'role', 'availability',
+  ],
+  proof: [
+    'rating', 'review_count', 'subtitle', 'badges',
+    'outcome_metric', 'completion_date', 'author',
+  ],
+  social_proof: [
+    'rating', 'review_count', 'subtitle', 'badges',
+    'author', 'verified', 'date',
+  ],
+  booking: [
+    'date', 'time', 'service_name', 'status',
+    'duration', 'location', 'price', 'currency', 'attendee_name',
+  ],
+  tracking: [
+    'status', 'last_updated', 'eta', 'location',
+    'progress', 'destination',
+  ],
+  operations: [
+    'status', 'last_updated', 'progress',
+    'assignee', 'priority',
+  ],
+  commerce: [
+    'price', 'currency', 'cta_label', 'badges',
+    'discount_percent', 'original_price', 'in_stock',
+  ],
+  conversion: [
+    'price', 'currency', 'cta_label', 'badges',
+    'discount_percent', 'urgency_text',
+  ],
+  marketing: [
+    'cta_label', 'expires_at', 'headline',
+    'badges', 'discount_code',
+  ],
+  info: ['cta_label', 'icon', 'subtitle'],
+  navigation: ['cta_label', 'icon', 'subtitle'],
+  trust: ['badges', 'rating', 'review_count', 'subtitle'],
+  pricing: ['price', 'currency', 'subtitle', 'features', 'period'],
+  valuation: ['price', 'currency', 'subtitle', 'change_percent', 'period'],
+  engagement: ['price', 'currency', 'badges', 'rating', 'review_count'],
+  packages: ['price', 'currency', 'badges', 'features', 'duration'],
+  entertainment: ['price', 'currency', 'badges', 'rating', 'review_count', 'date'],
+  venues: ['price', 'currency', 'badges', 'rating', 'review_count', 'capacity'],
+  production: ['price', 'currency', 'subtitle', 'duration', 'status'],
+  fleet: ['price', 'currency', 'subtitle', 'rating', 'capacity', 'status'],
+  ev: ['price', 'currency', 'subtitle', 'rating', 'connector_type', 'status'],
   // shared block ids handled below by id
 };
 
@@ -85,16 +137,23 @@ function buildReads(family, blockId) {
 }
 
 let totalAnnotations = 0;
+let totalMergedAdditions = 0;
 
-// Match `reads:` on a block literal line. We only insert when this
-// match is FALSE — never overwrite an existing reads[].
-const readsRe = /reads:\s*\[/;
+// Match `reads: [ ... ]` on a block literal line, capturing the inner
+// list so we can merge new entries into it.
+const readsLiteralRe = /reads:\s*\[([^\]]*)\]/;
 const familyRe = /family:\s*'([^']+)'/;
 const idRe = /id:\s*'([^']+)'/;
-// Insert after `module: '<slug>'` or `module: null` plus optional
-// fields like status/engines that may follow. We match the closing
-// `}` of the literal and inject before it.
-const closingBraceRe = /(\s*)}/;
+
+function parseReadsList(inner) {
+  // Inner is the contents between `[` and `]` of a `reads: [...]`.
+  // Entries are simple single-quoted strings separated by commas.
+  const out = [];
+  const re = /'([^']+)'/g;
+  let m;
+  while ((m = re.exec(inner)) !== null) out.push(m[1]);
+  return out;
+}
 
 function annotateLine(line) {
   // Skip if line doesn't look like a block literal (must have id +
@@ -102,21 +161,33 @@ function annotateLine(line) {
   const idMatch = line.match(idRe);
   const familyMatch = line.match(familyRe);
   if (!idMatch || !familyMatch) return line;
-  if (readsRe.test(line)) return line; // already annotated
 
   const blockId = idMatch[1];
   const family = familyMatch[1];
-  const reads = buildReads(family, blockId);
-  const readsLiteral = `reads: [${reads.map((r) => `'${r}'`).join(', ')}]`;
+  const desired = buildReads(family, blockId);
 
-  // Inject right before the closing `}` of the object literal.
-  // Block literals end with ` }` or ` },`. Replace the FIRST such
-  // closing on the line.
+  const existingMatch = line.match(readsLiteralRe);
+  if (existingMatch) {
+    // Merge: keep existing entries, append any desired ones missing.
+    const existing = parseReadsList(existingMatch[1]);
+    const seen = new Set(existing);
+    const additions = desired.filter((r) => !seen.has(r));
+    if (additions.length === 0) return line;
+    const merged = [...existing, ...additions];
+    const newLiteral = `reads: [${merged.map((r) => `'${r}'`).join(', ')}]`;
+    totalMergedAdditions += additions.length;
+    return line.slice(0, existingMatch.index) +
+      newLiteral +
+      line.slice(existingMatch.index + existingMatch[0].length);
+  }
+
+  // No existing reads[] — insert before the closing `}` of the
+  // object literal. Block literals end with ` }` or ` },`.
+  const readsLiteral = `reads: [${desired.map((r) => `'${r}'`).join(', ')}]`;
   const closingMatch = line.match(/( ?})(\s*,?)\s*$/);
   if (!closingMatch) return line;
   const prefix = line.slice(0, closingMatch.index);
   const suffix = line.slice(closingMatch.index);
-  // Add a comma if prefix doesn't already end in comma + space.
   const sep = /,\s*$/.test(prefix) ? ' ' : ', ';
   totalAnnotations++;
   return `${prefix}${sep}${readsLiteral}${suffix}`;
@@ -133,9 +204,9 @@ function rewriteFile(filePath, label) {
   });
   if (count > 0) {
     fs.writeFileSync(filePath, updated.join('\n'));
-    console.log(`${label}: ${count} block(s) annotated`);
+    console.log(`${label}: ${count} line(s) updated`);
   } else {
-    console.log(`${label}: nothing to annotate`);
+    console.log(`${label}: nothing to update`);
   }
 }
 
@@ -161,4 +232,7 @@ if (fs.existsSync(sharedPath)) rewriteFile(sharedPath, 'shared/index.ts');
 // 3. extractor template's hardcoded SHARED_BLOCKS_DATA
 if (fs.existsSync(SCRIPT_PATH)) rewriteFile(SCRIPT_PATH, 'extract-block-registry-data.js');
 
-console.log(`\nTotal: ${totalAnnotations} block(s) gained reads[]`);
+console.log(
+  `\nTotal: ${totalAnnotations} block(s) gained a reads[] literal, ` +
+    `${totalMergedAdditions} field(s) merged into existing reads[].`,
+);
