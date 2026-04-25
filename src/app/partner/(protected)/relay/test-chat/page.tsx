@@ -49,9 +49,8 @@ import { Loader2, MessageSquare, ChevronRight, Plus, Play } from 'lucide-react';
 import Link from 'next/link';
 import { T } from '@/app/admin/relay/flows/flow-helpers';
 import { TestChatIdentityStrip } from './_TestChatIdentityStrip';
-import { TestChatModeToggle } from './_TestChatModeToggle';
 import { TestChatBlockContext } from './_TestChatBlockContext';
-import type { SampleOrLive } from '@/lib/relay/block-context-types';
+import { TestChatSeedSampleCTA } from './_TestChatSeedSampleCTA';
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -126,11 +125,15 @@ export default function PartnerRelayTestChatPage() {
     const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
     const [seeded, setSeeded] = useState(false);
 
-    // PR fix-16b: data mode + last-fired block tracking. Mode flips
-    // the block-data path between sample (default) and live partner
-    // items. currentBlockId drives the BlockContext panel.
-    const [mode, setMode] = useState<SampleOrLive>('sample');
+    // PR fix-20: replaced the prior mode toggle with a persistent
+    // "Load sample data" CTA. Block-preview action now always uses
+    // 'live' mode — partners with no items see empty previews until
+    // they click the seed CTA, which writes to businessModules so
+    // everything (test-chat + /partner/relay/data) reflects the same
+    // data. currentBlockId drives the BlockContext panel.
     const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
+    // Bumped after a successful seed so block-preview effects refetch.
+    const [seedNonce, setSeedNonce] = useState(0);
 
     // Partner identity for the strip — read from the persona doc the
     // page already loads (see config effect below). Stored separately
@@ -232,7 +235,7 @@ export default function PartnerRelayTestChatPage() {
             if (!partnerId) return;
             (async () => {
                 try {
-                    const res = await getBlockPreviewDataAction(partnerId, tile.id, mode);
+                    const res = await getBlockPreviewDataAction(partnerId, tile.id, 'live');
                     if (!res.success || !res.data) return;
                     setChatMessages((prev) => {
                         const next = [...prev];
@@ -254,7 +257,7 @@ export default function PartnerRelayTestChatPage() {
                 }
             })();
         },
-        [partnerId, dataGuide, mode],
+        [partnerId, dataGuide, seedNonce],
     );
 
     const session = useRelaySession({
@@ -632,7 +635,13 @@ export default function PartnerRelayTestChatPage() {
                         Preview your Relay assistant. Scenarios mirror the Business Categories you selected in Settings.
                     </p>
                 </div>
-                <TestChatModeToggle mode={mode} onChange={setMode} />
+                {partnerId && userId && (
+                    <TestChatSeedSampleCTA
+                        partnerId={partnerId}
+                        userId={userId}
+                        onSeeded={() => setSeedNonce((n) => n + 1)}
+                    />
+                )}
             </div>
 
             <TestChatIdentityStrip

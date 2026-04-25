@@ -21,6 +21,7 @@ import {
   RELAY_VERTICALS,
   type RelayVertical,
 } from '@/lib/relay/relay-verticals';
+import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
 
 export interface PartnerSchemaCard {
   slug: string;
@@ -190,6 +191,152 @@ export async function listPartnerSchemasAction(
     };
   } catch (err: any) {
     console.error('[partner-relay-data] listPartnerSchemasAction failed:', err);
+    return { success: false, error: err?.message ?? 'unknown' };
+  }
+}
+
+// ── Bulk vertical seed (PR fix-20) ────────────────────────────────────
+//
+// "Start with sample data" — one click that populates every schema in
+// the partner's vertical with sample items. Replaces the prior
+// test-chat sample/live toggle (which only changed render path, never
+// persisted). After this runs:
+//   • test-chat's live mode renders against real partner items
+//   • /partner/relay/data shows item counts on every schema card
+//   • partner can edit / extend the seeded items immediately
+//
+// Skip-if-items-exist semantics: schemas that already have items are
+// left alone. Re-runs are safe and idempotent.
+
+export interface SeedAllVerticalSchemasResult {
+  success: boolean;
+  /** Vertical derived from partner identity. */
+  vertical?: RelayVertical | null;
+  /** Schemas iterated (vertical + 'shared'). */
+  totalSchemas?: number;
+  /** Schemas where items were freshly created. */
+  schemasSeeded?: number;
+  /** Schemas skipped because items already existed. */
+  schemasAlreadyHadItems?: number;
+  /** Total items created across all schemas. */
+  totalItemsCreated?: number;
+  /** Per-slug breakdown for UI feedback. */
+  perSchema?: Array<{
+    slug: string;
+    name?: string;
+    created: number;
+    skipped: boolean;
+    error?: string;
+  }>;
+  error?: string;
+}
+
+export async function seedAllVerticalSchemasAction(
+  partnerId: string,
+  userId: string,
+): Promise<SeedAllVerticalSchemasResult> {
+  try {
+    if (!adminDb) return { success: false, error: 'Database not available' };
+    if (!partnerId) {
+      return { success: false, error: 'partnerId is required' };
+    }
+
+    // ── Identity → vertical ──
+    const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
+    const persona = partnerDoc.exists
+      ? (partnerDoc.data() as any)?.businessPersona
+      : null;
+    const identity = persona?.identity ?? {};
+    const vertical = derivePartnerVertical(identity);
+
+    if (!vertical) {
+      return {
+        success: false,
+        error:
+          'Set your Business Identity (category) in Settings first — without a vertical we don\'t know which schemas to seed.',
+      };
+    }
+
+    // ── Schemas in this vertical (+ shared) ──
+    const schemasSnap = await adminDb.collection('relaySchemas').get();
+    const targetSchemas = schemasSnap.docs.filter((d) => {
+      const v = getVerticalForSlug(d.id);
+      return v === vertical || v === 'shared';
+    });
+
+    if (targetSchemas.length === 0) {
+      return {
+        success: true,
+        vertical,
+        totalSchemas: 0,
+        schemasSeeded: 0,
+        schemasAlreadyHadItems: 0,
+        totalItemsCreated: 0,
+        perSchema: [],
+      };
+    }
+
+    // ── Seed each schema in parallel (capped concurrency via Promise.all
+    // since the underlying action is largely Firestore-bound and Firebase
+    // SDK already batches reads). seedSampleItemsAction with
+    // skipIfItemsExist preserves any existing partner data. ──
+    const perSchema = await Promise.all(
+      targetSchemas.map(async (doc) => {
+        const slug = doc.id;
+        const name = (doc.data() as any)?.name as string | undefined;
+        try {
+          const res = await seedSampleItemsAction(partnerId, slug, userId, {
+            skipIfItemsExist: true,
+          });
+          if (!res.success) {
+            return {
+              slug,
+              name,
+              created: 0,
+              skipped: false,
+              error: res.error,
+            };
+          }
+          return {
+            slug,
+            name,
+            created: res.created ?? 0,
+            // res.created === 0 with success === true means existing
+            // items were left alone (skipIfItemsExist branch).
+            skipped: (res.created ?? 0) === 0,
+          };
+        } catch (err: any) {
+          return {
+            slug,
+            name,
+            created: 0,
+            skipped: false,
+            error: err?.message ?? 'unknown',
+          };
+        }
+      }),
+    );
+
+    const schemasSeeded = perSchema.filter((s) => s.created > 0).length;
+    const schemasAlreadyHadItems = perSchema.filter(
+      (s) => s.skipped && !s.error,
+    ).length;
+    const totalItemsCreated = perSchema.reduce((sum, s) => sum + s.created, 0);
+
+    return {
+      success: true,
+      vertical,
+      totalSchemas: perSchema.length,
+      schemasSeeded,
+      schemasAlreadyHadItems,
+      totalItemsCreated,
+      perSchema,
+    };
+  } catch (err: any) {
+    console.error(
+      '[partner-relay-data] seedAllVerticalSchemasAction failed:',
+      err,
+    );
     return { success: false, error: err?.message ?? 'unknown' };
   }
 }
