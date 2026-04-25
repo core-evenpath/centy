@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { BlockDefinition, BlockComponentProps } from '../../types';
 import { ShoppingBag, Minus, Plus, Tag, Truck, ChevronRight } from 'lucide-react';
+import { formatMoney } from '@/lib/currency';
 
 export const definition: BlockDefinition = {
   id: 'ecom_cart',
@@ -42,12 +43,15 @@ export const definition: BlockDefinition = {
   cacheDuration: 0,
 };
 
-function formatCurrency(amount: number): string {
-  return '₹' + amount.toLocaleString('en-IN');
+function formatCurrency(amount: number, currency: string): string {
+  return formatMoney(amount, currency);
 }
 
 export default function CartBlock({ data, theme, variant }: BlockComponentProps) {
   const items: Array<Record<string, any>> = data.items || [];
+  // Currency from the data envelope (partner-level). Falls back to
+  // INR for legacy data shapes that haven't been region-tagged yet.
+  const currency: string = data.currency ?? 'INR';
   const [quantities, setQuantities] = useState<Record<number, number>>(
     Object.fromEntries(items.map((item, i) => [i, item.quantity || 1]))
   );
@@ -68,7 +72,7 @@ export default function CartBlock({ data, theme, variant }: BlockComponentProps)
   const subtotal = items.reduce((sum, item, i) => sum + (item.price * (quantities[i] || 1)), 0);
   const couponDiscount = data.couponDiscount || 0;
   const deliveryFee = data.deliveryFee || 0;
-  const deliveryLabel = data.deliveryLabel || (deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee));
+  const deliveryLabel = data.deliveryLabel || (deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee, currency));
   const total = subtotal - couponDiscount + deliveryFee;
 
   const updateQty = (idx: number, delta: number) => {
@@ -96,7 +100,7 @@ export default function CartBlock({ data, theme, variant }: BlockComponentProps)
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '12px', fontWeight: 600, color: theme.t1 }}>{item.name}</div>
               {item.variant && <div style={{ fontSize: '10px', color: theme.t3, marginTop: '2px' }}>{item.variant}</div>}
-              <div style={{ fontSize: '13px', fontWeight: 700, color: theme.accent, marginTop: '4px' }}>{formatCurrency(item.price)}</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: theme.accent, marginTop: '4px' }}>{formatCurrency(item.price, currency)}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <div onClick={() => updateQty(i, -1)} style={{ width: 24, height: 24, borderRadius: '6px', border: `1px solid ${theme.bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -116,7 +120,7 @@ export default function CartBlock({ data, theme, variant }: BlockComponentProps)
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', background: theme.greenBg, border: `1px solid ${theme.greenBdr}`, borderRadius: '8px', marginBottom: '10px' }}>
             <Tag size={12} color={theme.green} />
             <span style={{ fontSize: '11px', fontWeight: 600, color: theme.green }}>{data.couponCode} applied</span>
-            <span style={{ fontSize: '11px', color: theme.green, marginLeft: 'auto' }}>-{formatCurrency(couponDiscount)}</span>
+            <span style={{ fontSize: '11px', color: theme.green, marginLeft: 'auto' }}>-{formatCurrency(couponDiscount, currency)}</span>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px', border: `1px dashed ${theme.bdrM}`, borderRadius: '8px', marginBottom: '10px', cursor: 'pointer' }}>
@@ -127,12 +131,12 @@ export default function CartBlock({ data, theme, variant }: BlockComponentProps)
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <span style={{ fontSize: '11px', color: theme.t3 }}>Subtotal</span>
-          <span style={{ fontSize: '11px', color: theme.t2 }}>{formatCurrency(subtotal)}</span>
+          <span style={{ fontSize: '11px', color: theme.t2 }}>{formatCurrency(subtotal, currency)}</span>
         </div>
         {couponDiscount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span style={{ fontSize: '11px', color: theme.green }}>Discount</span>
-            <span style={{ fontSize: '11px', color: theme.green }}>-{formatCurrency(couponDiscount)}</span>
+            <span style={{ fontSize: '11px', color: theme.green }}>-{formatCurrency(couponDiscount, currency)}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -145,7 +149,7 @@ export default function CartBlock({ data, theme, variant }: BlockComponentProps)
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: `1px solid ${theme.bdr}` }}>
           <span style={{ fontSize: '14px', fontWeight: 700, color: theme.t1 }}>Total</span>
-          <span style={{ fontSize: '14px', fontWeight: 700, color: theme.accent }}>{formatCurrency(total)}</span>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: theme.accent }}>{formatCurrency(total, currency)}</span>
         </div>
       </div>
 

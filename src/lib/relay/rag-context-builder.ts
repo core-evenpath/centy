@@ -1,4 +1,5 @@
 import type { BlockResolution } from './block-resolver';
+import { formatMoney } from '@/lib/currency';
 
 export interface RelayPromptInput {
   brandName: string;
@@ -39,7 +40,8 @@ function summarizeBlockContext(resolution: BlockResolution | null): string {
 
   if (data?.name || data?.title) {
     const label = data.name || data.title;
-    const price = typeof data.price === 'number' ? ` priced at ${formatCurrency(data.price)}` : '';
+    const currency: string = data.currency ?? 'INR';
+    const price = typeof data.price === 'number' ? ` priced at ${formatMoney(data.price, currency)}` : '';
     return `The customer sees details for "${label}"${price}.`;
   }
 
@@ -54,12 +56,10 @@ function summarizeBlockContext(resolution: BlockResolution | null): string {
   return `A "${blockId}" block is displayed with ${itemsUsed} item(s).`;
 }
 
-function formatCurrency(amount: number): string {
-  if (amount >= 100) {
-    return '\u20B9' + amount.toLocaleString('en-IN');
-  }
-  return '$' + amount.toFixed(2);
-}
+// Removed local formatCurrency: the <100 -> "$" / >=100 -> rupee
+// heuristic produced wrong currency for partners outside India. PR
+// fix-14 routes rendering through canonical formatMoney(amount,
+// currency) using the data envelope value.
 
 function formatHistory(
   messages: ConversationMessage[],
