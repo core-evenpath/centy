@@ -24,10 +24,136 @@ import {
     getModuleItemsAction,
     deleteAllModuleItemsAction,
 } from '@/actions/modules-actions';
+import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleItem } from '@/lib/modules/types';
 import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
 
 type SampleItem = Partial<ModuleItem>;
+
+// ── Schema-derived sample items (PR fix-19b) ─────────────────────────
+//
+// When a slug doesn't have a hand-curated entry in SAMPLE_ITEMS_BY_SLUG,
+// generate 3 generic sample items from the relaySchemas field list.
+// Every schema gets working "Start with sample data" without per-slug
+// code edits.
+
+async function deriveSampleItemsFromSchema(
+    slug: string,
+): Promise<SampleItem[] | null> {
+    try {
+        const doc = await adminDb.collection('relaySchemas').doc(slug).get();
+        if (!doc.exists) return null;
+        const data = doc.data() as any;
+        const fields: any[] =
+            data?.schema?.fields ?? data?.fields ?? [];
+        if (!Array.isArray(fields) || fields.length === 0) return null;
+
+        // Build 3 items, each populating fields with type-appropriate
+        // demo values. Required fields always populated; optional fields
+        // populated when they're well-known (price, currency, image_url).
+        const itemNamePrefix =
+            typeof data?.itemLabel === 'string' && data.itemLabel
+                ? data.itemLabel
+                : 'Sample';
+
+        const out: SampleItem[] = [];
+        for (let i = 1; i <= 3; i++) {
+            const item: Record<string, any> = {
+                name: `${itemNamePrefix} ${i}`,
+                description: `Auto-generated sample for previewing ${slug}.`,
+                isActive: true,
+            };
+            const customFieldValues: Record<string, any> = {};
+
+            for (const f of fields) {
+                const fname: string = f.name ?? f.fieldName ?? f.field ?? '';
+                if (!fname) continue;
+                if (fname === 'name' || fname === 'description') continue;
+                const ftype: string = (f.type ?? 'text').toLowerCase();
+                let value: any;
+                switch (fname) {
+                    case 'price':
+                    case 'amount':
+                    case 'cost':
+                        value = [19.99, 29.99, 39.99][i - 1] ?? 19.99;
+                        break;
+                    case 'currency':
+                        // Default per schema's defaultCurrency, fall back USD.
+                        value = data?.defaultCurrency ?? 'USD';
+                        break;
+                    case 'image_url':
+                    case 'imageUrl':
+                    case 'thumbnail':
+                        value = `https://placehold.co/600x400?text=Sample+${i}`;
+                        break;
+                    case 'category':
+                        value = 'General';
+                        break;
+                    case 'rating':
+                        value = [4.7, 4.5, 4.8][i - 1] ?? 4.5;
+                        break;
+                    case 'review_count':
+                    case 'reviewCount':
+                        value = [128, 64, 256][i - 1] ?? 64;
+                        break;
+                    case 'subtitle':
+                        value = `Demo subtitle ${i}`;
+                        break;
+                    case 'badges':
+                        value = i === 1 ? ['Popular'] : i === 2 ? ['New'] : [];
+                        break;
+                    case 'in_stock':
+                    case 'inStock':
+                        value = true;
+                        break;
+                    case 'duration':
+                        value = ['30 min', '60 min', '90 min'][i - 1];
+                        break;
+                    case 'date':
+                        value = new Date(Date.now() + i * 86_400_000)
+                            .toISOString()
+                            .slice(0, 10);
+                        break;
+                    case 'time':
+                        value = ['10:00', '14:00', '17:30'][i - 1];
+                        break;
+                    case 'status':
+                        value = ['active', 'pending', 'in_progress'][i - 1];
+                        break;
+                    default:
+                        // Type-based fallback for unknown field names.
+                        if (ftype === 'number' || ftype === 'currency') {
+                            value = i;
+                        } else if (ftype === 'toggle') {
+                            value = true;
+                        } else if (ftype === 'tags' || ftype === 'images') {
+                            value = [];
+                        } else if (ftype === 'date') {
+                            value = new Date().toISOString().slice(0, 10);
+                        } else {
+                            value = `Demo ${fname} ${i}`;
+                        }
+                }
+                // ModuleItem has top-level slots for a few canonical fields;
+                // everything else lands in `fields` (custom fields bag).
+                if (fname === 'price') item.price = value;
+                else if (fname === 'currency') item.currency = value;
+                else if (fname === 'category') item.category = value;
+                else if (fname === 'image_url' || fname === 'imageUrl' || fname === 'thumbnail')
+                    item.images = [value];
+                else customFieldValues[fname] = value;
+            }
+            if (Object.keys(customFieldValues).length > 0) {
+                item.fields = customFieldValues;
+            }
+            out.push(item as SampleItem);
+        }
+        return out;
+    } catch (err) {
+        console.error('[sample-data] deriveSampleItemsFromSchema failed:', err);
+        return null;
+    }
+}
 
 // Sample item sets per module slug. Pick demo data that exercises the
 // matching block previews — prices, categories, a few optional fields —
@@ -149,9 +275,22 @@ export async function seedSampleItemsAction(
     error?: string;
 }> {
     try {
-        const items = SAMPLE_ITEMS_BY_SLUG[moduleSlug];
+        // PR fix-19b: prefer the hand-curated set when one exists for
+        // this slug (covers the legacy product_catalog / service_catalog
+        // / fb_menu_catalog flows). Otherwise derive 3 generic items
+        // from the schema's field list — every relaySchemas slug now
+        // gets working sample data without needing a code update for
+        // each new schema.
+        let items = SAMPLE_ITEMS_BY_SLUG[moduleSlug];
         if (!items || items.length === 0) {
-            return { success: false, error: `No sample items defined for "${moduleSlug}"` };
+            const derived = await deriveSampleItemsFromSchema(moduleSlug);
+            if (!derived || derived.length === 0) {
+                return {
+                    success: false,
+                    error: `No sample items available for "${moduleSlug}" (schema not found in relaySchemas).`,
+                };
+            }
+            items = derived;
         }
 
         // Enable the module if not already enabled.
