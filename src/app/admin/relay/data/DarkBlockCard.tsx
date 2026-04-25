@@ -20,7 +20,12 @@ export default function DarkBlockCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <span title="This block needs data — its module has no items yet.">
+              <AlertTriangle
+                className="h-4 w-4 text-amber-500"
+                aria-label="Block has no partner data"
+              />
+            </span>
             {block.blockLabel}
           </CardTitle>
           <div className="flex flex-wrap gap-1 justify-end">
