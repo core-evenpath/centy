@@ -133,12 +133,12 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
       size="sm"
       disabled={busy}
       onClick={handleSeed}
-      title="Use Gemini to generate realistic sample items for every schema in your vertical. Idempotent — your existing data is left alone."
+      title="Populate every schema in your vertical with sample items covering every schema field. Idempotent — your existing data is left alone."
     >
       {busy ? (
         <>
           <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-          Generating with AI…
+          Populating items…
         </>
       ) : (
         <>
