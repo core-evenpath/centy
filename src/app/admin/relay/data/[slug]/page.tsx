@@ -30,6 +30,7 @@ import RelaySubNav from '../../components/RelaySubNav';
 import RelayPageIntro from '../../components/RelayPageIntro';
 import SchemaFieldsTable from './SchemaFieldsTable';
 import SchemaConsumersPanel from './SchemaConsumersPanel';
+import EnrichButton from './EnrichButton';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -74,6 +75,15 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
           Back to Data
         </Link>
       </Button>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm text-muted-foreground">
+          {schema.schema?.fields?.length ?? 0} fields ·{' '}
+          {consumerBlocks.length} consumer block
+          {consumerBlocks.length === 1 ? '' : 's'}
+        </div>
+        <EnrichButton slug={slug} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
