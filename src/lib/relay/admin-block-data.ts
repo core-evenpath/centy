@@ -1,21 +1,25 @@
 /**
- * Build real `blockData` for an admin preview component from partner
- * doc + module items. The preview components accept optional `data`
- * props (see src/app/admin/relay/blocks/previews/_preview-props.ts) —
- * when we have data to inject, we emit it here. Otherwise we return
- * `undefined` and the preview falls back to its design sample.
+ * Build real `blockData` for a block render — admin gallery preview AND
+ * partner test-chat — from partner doc + module items.
  *
- * This is intentionally a small dispatch: only the blocks that tend to
- * carry dynamic content (greeting, product_card, contact) are handled.
- * Everything else renders as design. Extend here when a new preview
- * grows a data contract.
+ * PR fix-26: REWIRED to be GENERIC. Previously a per-blockId switch
+ * handled ~10 specific block IDs and fell through to `undefined` for
+ * everything else, so 90% of blocks rendered against the renderer's
+ * internal sampleData regardless of what the partner had seeded. Now
+ * any block whose registry definition has a `module` slug pulls items
+ * from the matching partner businessModule — every block, every
+ * vertical, no per-blockId allowlist.
+ *
+ * Two specialized builders remain: `greeting` and `contact` read from
+ * the partner's persona (not module items) and emit a custom shape.
+ * Everything else routes through the generic items-builder.
  */
 
 import type {
   GreetingPreviewData,
-  ProductCardPreviewData,
   ContactPreviewData,
 } from '@/app/admin/relay/blocks/previews/_preview-props';
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 
 interface ModuleLike {
   slug: string;
@@ -35,40 +39,20 @@ export function buildBlockData({
   modules,
 }: BuildInput): Record<string, unknown> | undefined {
   let result: Record<string, unknown> | undefined;
-  switch (blockId) {
-    case 'greeting':
-    case 'ecom_greeting':
-      result = buildGreeting(partnerData) as Record<string, unknown> | undefined;
-      break;
 
-    case 'product_card':
-    case 'ecom_product_card':
-    case 'menu':
-    case 'fb_menu':
-    case 'services':
-    case 'menu_item':
-    case 'drink_menu':
-      result = buildProductCard(modules, blockId) as Record<string, unknown> | undefined;
-      break;
-
-    case 'contact':
-    case 'shared_contact':
-      result = buildContact(partnerData) as Record<string, unknown> | undefined;
-      break;
-
-    default:
-      result = undefined;
+  // ── Specialized builders — different data shape from `items`. ──
+  if (blockId === 'greeting' || blockId === 'ecom_greeting') {
+    result = buildGreeting(partnerData) as Record<string, unknown> | undefined;
+  } else if (blockId === 'contact' || blockId === 'shared_contact') {
+    result = buildContact(partnerData) as Record<string, unknown> | undefined;
+  } else {
+    // ── Generic dispatch (PR fix-26) ────────────────────────────────
+    // Look up the block's `module` slug in the registry, find the
+    // partner's matching businessModule, return its items.
+    result = buildGenericFromModule(blockId, modules);
   }
 
   // ── PR fix-15: thread partner currency into every envelope ────────
-  //
-  // Block renderers (cart, product-card, rag-context-builder) read
-  // `data.currency` to drive formatMoney. Without this thread the
-  // renderers fall back to the literal default ('INR'), so a USD
-  // partner's test-chat would render rupees regardless of the value
-  // they configured in BusinessIdentityCard. Layering the partner
-  // currency at envelope level lets the renderer use it while
-  // per-item `currency` (when set on a module item) still wins.
   if (result && !result.currency) {
     const personaCurrency =
       partnerData?.businessPersona?.identity?.currency;
@@ -80,7 +64,108 @@ export function buildBlockData({
   return result;
 }
 
-// ── greeting ─────────────────────────────────────────────────────────
+// ── Generic builder (PR fix-26) ────────────────────────────────────
+//
+// For ANY block that has `block.module` set, find the partner's
+// businessModule with that slug and return its items in a uniform
+// envelope:
+//
+//   {
+//     ...firstItem,        // flat shape for single-record blocks
+//                          // (nudge.headline, promo.title, etc.)
+//     items: [...all],     // list shape for catalog/menu/etc blocks
+//     moduleSlug,           // for debugging / RAG context
+//   }
+//
+// Both shapes co-exist on the same envelope so block renderers can
+// read whichever they expect — list-shaped blocks pick `items`,
+// single-record blocks pick top-level fields. Item collisions on
+// `items`-named fields are vanishingly rare in practice.
+
+function buildGenericFromModule(
+  blockId: string,
+  modules: ModuleLike[],
+): Record<string, unknown> | undefined {
+  const block = ALL_BLOCKS_DATA.find((b) => b.id === blockId);
+  const slug = block?.module;
+  if (!slug) return undefined;
+
+  const mod = modules.find(
+    (m) => m.slug === slug && Array.isArray(m.items) && m.items.length > 0,
+  );
+  if (!mod) return undefined;
+
+  const items = mod.items.slice(0, 6).map((raw) => normalizeItem(raw));
+  if (items.length === 0) return undefined;
+
+  // Spread firstItem at top level for single-record renderers (nudge,
+  // promo, etc. that read `data.headline` / `data.title`), then list
+  // shape for catalog renderers. `currency` stays on each item but
+  // is intentionally NOT spread at envelope level — the persona
+  // currency thread (above) owns the top-level currency so partner
+  // identity wins over per-item currency for renderers that read
+  // `data.currency` as the default.
+  const { currency: _itemCurrency, ...firstItemWithoutCurrency } = items[0];
+  return {
+    ...firstItemWithoutCurrency,
+    items,
+    moduleSlug: mod.slug,
+  };
+}
+
+/**
+ * Coerce a raw partner item into the shape block renderers expect.
+ * Top-level slots (name/description/price/currency/category/imageUrl)
+ * pulled from the canonical ModuleItem shape; the `fields` custom
+ * bag is hoisted to the top level so renderers reading `data.headline`
+ * or `data.calories` find them.
+ */
+function normalizeItem(raw: any): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, unknown> = {};
+
+  // Canonical top-level fields.
+  copyIf(out, raw, 'id');
+  copyIf(out, raw, 'name');
+  copyIf(out, raw, 'description');
+  copyIf(out, raw, 'category');
+  copyIf(out, raw, 'price');
+  copyIf(out, raw, 'currency');
+  copyIf(out, raw, 'isActive');
+
+  // Image normalization: ModuleItem.images[] → imageUrl + thumbnail.
+  if (Array.isArray(raw.images) && raw.images.length > 0) {
+    const first = raw.images[0];
+    if (typeof first === 'string') {
+      out.imageUrl = first;
+      out.thumbnail = first;
+      out.image_url = first;
+    }
+  }
+
+  // Hoist the custom-fields bag (`fields: {...}`) to top level so
+  // schema-defined fields like `headline`, `tagline`, `calories`,
+  // `discount_code`, `expires_at`, etc. are reachable as
+  // `data.{fieldName}` in renderers.
+  if (raw.fields && typeof raw.fields === 'object') {
+    for (const [k, v] of Object.entries(raw.fields)) {
+      if (out[k] === undefined) out[k] = v;
+    }
+  }
+
+  // Aliases used by some renderers.
+  if (out.description && !out.subtitle) out.subtitle = out.description;
+  if (out.name && !out.title) out.title = out.name;
+
+  return out;
+}
+
+function copyIf(out: Record<string, unknown>, src: any, key: string): void {
+  const v = src?.[key];
+  if (v !== undefined && v !== null) out[key] = v;
+}
+
+// ── greeting (specialized — partner persona, not module items) ──────
 
 function buildGreeting(
   partnerData: Record<string, any> | null
@@ -108,118 +193,7 @@ function buildGreeting(
   return Object.keys(data).length > 0 ? data : undefined;
 }
 
-// ── product_card / menu / services ───────────────────────────────────
-
-/**
- * Per-block preferred module-slug list for purpose-aware module
- * selection. Five different block ids (product_card,
- * ecom_product_card, menu, fb_menu, services) all dispatch to
- * buildProductCard; without this mapping, all five would render
- * the same first-non-empty module regardless of intent.
- *
- * Ordering inside each list is preference: leftmost slug wins
- * if multiple matches exist. Fallback to first-with-items only
- * when no preferred slug matches (preserves single-module
- * partner behavior + catches partners using bespoke slugs).
- *
- * See docs/phase-4/test-chat-products-audit.md §root-cause.
- */
-const PRODUCT_BLOCK_PREFERRED_SLUGS: Record<string, readonly string[]> = {
-  product_card: ['products', 'catalog', 'inventory'],
-  ecom_product_card: ['products', 'catalog', 'inventory'],
-  menu: ['menu_items', 'menu', 'dishes'],
-  fb_menu: ['menu_items', 'menu', 'dishes'],
-  services: ['services', 'treatments', 'offerings'],
-  // Test-chat-emission follow-up: cafe discovery blocks per
-  // food-delivery.ts:22 flow template. Both share items-array
-  // shape with menu / product_card; reuse buildProductCard
-  // directly. category_browser + dietary_filter deferred — their
-  // data shapes (category aggregation, dietary taxonomy) don't
-  // fit today's businessModules schema.
-  menu_item: ['menu_items', 'menu', 'dishes'],
-  drink_menu: ['drinks', 'beverages', 'drink_menu', 'menu_items'],
-};
-
-function pickModuleByPurpose(
-  modules: ModuleLike[],
-  blockId: string,
-): ModuleLike | undefined {
-  const preferred = PRODUCT_BLOCK_PREFERRED_SLUGS[blockId];
-  if (preferred) {
-    for (const slug of preferred) {
-      const match = modules.find(
-        (m) => m.slug === slug && Array.isArray(m.items) && m.items.length > 0,
-      );
-      if (match) return match;
-    }
-  }
-  // Fallback: first module with any items. Preserves prior behavior
-  // for partners with one module or bespoke slugs.
-  return modules.find((m) => Array.isArray(m.items) && m.items.length > 0);
-}
-
-function buildProductCard(
-  modules: ModuleLike[],
-  blockId: string,
-): ProductCardPreviewData | undefined {
-  const mod = pickModuleByPurpose(modules, blockId);
-  if (!mod) return undefined;
-
-  const items = mod.items.slice(0, 4).map((raw: any) => {
-    const name =
-      pickString(raw, ['name', 'title', 'label']) || 'Untitled item';
-    const desc =
-      pickString(raw, ['subtitle', 'shortDescription', 'description', 'variant', 'category']) ||
-      undefined;
-    const rawPrice = pickNumber(raw, ['price', 'amount', 'cost']);
-    const priceLabel =
-      pickString(raw, ['priceLabel', 'displayPrice']) || undefined;
-    const badge =
-      pickString(raw, ['badge', 'tag', 'label']) ||
-      (raw?.isPopular ? 'Popular' : raw?.isNew ? 'New' : undefined);
-    const rating = pickNumber(raw, ['rating', 'stars', 'averageRating']);
-    const reviews = pickNumber(raw, ['reviewCount', 'reviews', 'numReviews']);
-    const id = pickString(raw, ['id']);
-    const currency = pickString(raw, ['currency']);
-    const originalPrice = pickNumber(raw, ['compareAtPrice', 'originalPrice']);
-    const imageUrl =
-      pickString(raw, ['thumbnail', 'imageUrl', 'image']) ||
-      (Array.isArray(raw?.images) && typeof raw.images[0] === 'string'
-        ? raw.images[0]
-        : undefined);
-
-    const out: NonNullable<ProductCardPreviewData['items']>[number] = { name };
-    if (id) out.id = id;
-    if (desc) {
-      out.desc = desc;
-      // Duplicated to `subtitle` so CatalogCards (BlockRenderer) renders
-      // the description line — its type reads `subtitle`, not `desc`.
-      out.subtitle = desc;
-    }
-    if (typeof rawPrice === 'number') out.price = rawPrice;
-    if (priceLabel) out.priceLabel = priceLabel;
-    if (currency) out.currency = currency;
-    if (typeof originalPrice === 'number') out.originalPrice = originalPrice;
-    if (badge) {
-      out.badge = badge;
-      // Duplicated to `badges` (array) for CatalogCards.
-      out.badges = [badge];
-    }
-    if (typeof rating === 'number') out.rating = rating;
-    if (typeof reviews === 'number') {
-      out.reviews = reviews;
-      // Duplicated to `reviewCount` for CatalogCards.
-      out.reviewCount = reviews;
-    }
-    if (imageUrl) out.imageUrl = imageUrl;
-    out.moduleSlug = mod.slug;
-    return out;
-  });
-
-  return items.length > 0 ? { items, moduleSlug: mod.slug } : undefined;
-}
-
-// ── contact ──────────────────────────────────────────────────────────
+// ── contact (specialized — partner persona) ─────────────────────────
 
 function buildContact(
   partnerData: Record<string, any> | null
@@ -235,23 +209,4 @@ function buildContact(
   if (identity.website) rows.push({ label: 'Website', value: String(identity.website), icon: '◧' });
 
   return rows.length > 0 ? { items: rows } : undefined;
-}
-
-// ── helpers ──────────────────────────────────────────────────────────
-
-function pickString(obj: any, keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = obj?.[k];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-  }
-  return undefined;
-}
-
-function pickNumber(obj: any, keys: string[]): number | undefined {
-  for (const k of keys) {
-    const v = obj?.[k];
-    if (typeof v === 'number' && Number.isFinite(v)) return v;
-    if (typeof v === 'string' && v.trim() && !Number.isNaN(Number(v))) return Number(v);
-  }
-  return undefined;
 }
