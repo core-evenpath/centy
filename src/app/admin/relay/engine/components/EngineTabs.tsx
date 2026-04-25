@@ -4,14 +4,15 @@ import React from 'react';
 import type { Engine } from '@/lib/relay/engine-types';
 import { ENGINES } from '@/lib/relay/engine-types';
 
-// Engine display metadata. Keys match the canonical `ENGINES` tuple.
-// Booking is the only fully-activated tab in Phase 1; the rest are
-// placeholders until Phase 2 ships their per-engine milestones.
+// Tab display metadata. Keys match the canonical `ENGINES` tuple, but
+// labels are reframed as **transaction flows** (PR fix-13): the verb
+// the user actually asks ("buy", "book", "engage") not the internal
+// engine name. Engine slugs stay for routing/backwards-compat.
 const ENGINE_META: Record<Engine, { label: string; emoji: string }> = {
-  commerce: { label: 'Commerce', emoji: '🛍️' },
+  commerce: { label: 'Buying', emoji: '🛒' },
   booking: { label: 'Booking', emoji: '📅' },
   lead: { label: 'Lead', emoji: '🎯' },
-  engagement: { label: 'Engagement', emoji: '💝' },
+  engagement: { label: 'Engaging', emoji: '💬' },
   info: { label: 'Info', emoji: 'ℹ️' },
   service: { label: 'Service', emoji: '🔧' },
 };
@@ -66,7 +67,7 @@ export function EngineTabs({ active, onChange }: Props) {
               whiteSpace: 'nowrap',
               opacity: activated ? 1 : 0.65,
             }}
-            title={activated ? undefined : `${meta.label} engine — coming in Phase 2`}
+            title={activated ? undefined : `${meta.label} flow — coming in Phase 2`}
           >
             <span aria-hidden>{meta.emoji}</span>
             <span>{meta.label}</span>

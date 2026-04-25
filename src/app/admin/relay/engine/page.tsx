@@ -7,8 +7,8 @@ export default function BlockEnginePage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
       <RelaySubNav />
       <RelayPageIntro
-        title="Block Engine"
-        description="Engine-scoped view of the block catalog. Pick an engine (Booking, Commerce, Lead, Engagement, Info) and see every block that engine can run, bucketed by canonical stage across all sub-verticals. No partner context — for partner-specific diagnostics, use Relay Health."
+        title="Transaction Flows"
+        description="What happens when a user buys, books, requests a lead, engages, or asks a question. Each tab is one journey — narrative, happy-path block sequence, and a sample conversation. The full per-flow catalog lives in the collapsed 'All blocks' section. For partner-specific diagnostics, use Relay Health."
       />
       <EngineShell />
     </div>
