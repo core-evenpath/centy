@@ -8,7 +8,7 @@
 // counts. Idempotent — schemas with existing items are left alone.
 //
 // Three states:
-//   • Idle    — "Load sample data" button
+//   • Idle    — "Generate sample data" button
 //   • Loading — disabled with spinner
 //   • Done    — green badge with summary; can re-trigger to fill any
 //               schemas that were skipped first time.
@@ -143,7 +143,7 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
       ) : (
         <>
           <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-          Load sample data
+          Generate sample data
         </>
       )}
     </Button>

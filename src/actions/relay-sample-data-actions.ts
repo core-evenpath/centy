@@ -155,113 +155,10 @@ async function deriveSampleItemsFromSchema(
     }
 }
 
-// Sample item sets per module slug. Pick demo data that exercises the
-// matching block previews — prices, categories, a few optional fields —
-// so the Test Chat renders something believable out of the box.
-const SAMPLE_ITEMS_BY_SLUG: Record<string, SampleItem[]> = {
-    food_menu: [
-        {
-            name: 'Cappuccino',
-            description: 'Double-shot espresso with silky steamed milk and a thin layer of foam.',
-            category: 'Coffee',
-            price: 4.5,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, serving_size: 'Medium (8oz)', calories: 120, is_popular: true },
-        },
-        {
-            name: 'Iced Latte',
-            description: 'Cold espresso poured over milk and ice. Refreshing.',
-            category: 'Coffee',
-            price: 5.0,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, serving_size: 'Large (12oz)', calories: 180 },
-        },
-        {
-            name: 'Masala Chai',
-            description: 'House-spiced black tea with cardamom, ginger, and cinnamon.',
-            category: 'Tea',
-            price: 4.0,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, serving_size: 'Medium (8oz)', spice_level: 'mild' },
-        },
-        {
-            name: 'Matcha Latte',
-            description: 'Ceremonial-grade matcha whisked with steamed oat milk.',
-            category: 'Tea',
-            price: 5.5,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, is_vegan: true, serving_size: 'Medium (8oz)', calories: 150 },
-        },
-        {
-            name: 'Fresh Orange Juice',
-            description: 'Hand-pressed this morning. No added sugar.',
-            category: 'Juice',
-            price: 6.0,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, is_vegan: true, serving_size: 'Large (12oz)', calories: 165 },
-        },
-        {
-            name: 'Green Detox Juice',
-            description: 'Cucumber, celery, apple, spinach, and lemon.',
-            category: 'Juice',
-            price: 7.0,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, is_vegan: true, serving_size: 'Medium (10oz)', calories: 95, is_popular: true },
-        },
-        {
-            name: 'Butter Croissant',
-            description: 'Flaky, all-butter croissant baked each morning.',
-            category: 'Pastries',
-            price: 3.75,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, serving_size: '1 piece', calories: 272, allergens: 'gluten, dairy' },
-        },
-        {
-            name: 'Avocado Toast',
-            description: 'Smashed avocado on sourdough with chili flakes and lemon.',
-            category: 'Food',
-            price: 9.5,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, is_vegan: true, serving_size: '1 plate', calories: 320, allergens: 'gluten' },
-        },
-        {
-            name: 'Blueberry Muffin',
-            description: 'House-baked muffin studded with wild blueberries.',
-            category: 'Pastries',
-            price: 3.5,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, serving_size: '1 piece', calories: 310, allergens: 'gluten, dairy, egg' },
-        },
-        {
-            name: 'Cold Brew',
-            description: '18-hour slow-steeped cold brew. Smooth and low acidity.',
-            category: 'Coffee',
-            price: 5.25,
-            currency: 'USD',
-            isActive: true,
-            fields: { is_veg: true, is_vegan: true, serving_size: 'Large (16oz)', calories: 5, is_popular: true },
-        },
-    ],
-    product_catalog: [
-        { name: 'Sample Product A', description: 'Demo product for previewing product cards.', category: 'General', price: 19.99, currency: 'USD', isActive: true },
-        { name: 'Sample Product B', description: 'Demo product for previewing product cards.', category: 'General', price: 29.99, currency: 'USD', isActive: true },
-        { name: 'Sample Product C', description: 'Demo product for previewing product cards.', category: 'General', price: 39.99, currency: 'USD', isActive: true },
-    ],
-    service_catalog: [
-        { name: 'Consultation (30 min)', description: 'Intro call to scope your needs.', category: 'Consulting', price: 50, currency: 'USD', isActive: true },
-        { name: 'Standard Session (60 min)', description: 'One-hour working session.', category: 'Consulting', price: 120, currency: 'USD', isActive: true },
-        { name: 'Deep Dive (90 min)', description: 'Extended session with follow-up notes.', category: 'Consulting', price: 180, currency: 'USD', isActive: true },
-    ],
-};
+// PR fix-21: removed SAMPLE_ITEMS_BY_SLUG curated demos. Every slug
+// now goes through deriveSampleItemsFromSchema for consistent coverage
+// across all 153 vertical-prefixed schemas (one path, no per-slug code).
+
 
 export async function seedSampleItemsAction(
     partnerId: string,
@@ -275,22 +172,16 @@ export async function seedSampleItemsAction(
     error?: string;
 }> {
     try {
-        // PR fix-19b: prefer the hand-curated set when one exists for
-        // this slug (covers the legacy product_catalog / service_catalog
-        // / fb_menu_catalog flows). Otherwise derive 3 generic items
-        // from the schema's field list — every relaySchemas slug now
-        // gets working sample data without needing a code update for
-        // each new schema.
-        let items = SAMPLE_ITEMS_BY_SLUG[moduleSlug];
+        // PR fix-21: single source of truth — every slug routes through
+        // deriveSampleItemsFromSchema. The legacy SAMPLE_ITEMS_BY_SLUG
+        // curated demos went away because they only covered 3 slugs
+        // and used stale (pre-vertical-prefix) names.
+        const items = await deriveSampleItemsFromSchema(moduleSlug);
         if (!items || items.length === 0) {
-            const derived = await deriveSampleItemsFromSchema(moduleSlug);
-            if (!derived || derived.length === 0) {
-                return {
-                    success: false,
-                    error: `No sample items available for "${moduleSlug}" (schema not found in relaySchemas).`,
-                };
-            }
-            items = derived;
+            return {
+                success: false,
+                error: `No sample items available for "${moduleSlug}" (schema not found in relaySchemas).`,
+            };
         }
 
         // Enable the module if not already enabled.
