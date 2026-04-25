@@ -79,7 +79,7 @@ Your task: propose 8-15 additional fields that an industry-standard ${ctx.family
 For each proposed field, return:
 - name: snake_case identifier (no spaces, no camelCase)
 - type: ONE of [text, textarea, number, currency, duration, url, select, multi_select, tags, toggle]
-- isRequired: boolean — true only when the field is essential for the block to render meaningfully
+- isRequired: boolean — set FALSE for almost every suggested field. Only mark true if the block literally cannot render without this value (rare; partner-side data is often partial). The append step also clamps to false server-side, so prefer false here.
 - isSearchable: boolean — true for prose fields used in search/RAG
 - showInList: boolean — true when the field is useful in a list view
 - showInCard: boolean — true when the field belongs on a card preview
@@ -269,7 +269,14 @@ export async function appendFieldsToRelaySchemaAction(
         id: `fld_${s.name}`,
         name: s.name,
         type: s.type,
-        isRequired: s.isRequired,
+        // Clamp every AI-suggested field to NOT required. The LLM
+        // tends to mark catalog fields like price/image_url as
+        // required, which forces partner data ingest to fail when
+        // those values are missing. Required is opt-in only — admin
+        // flips it explicitly via the schema editor when they're
+        // sure the block needs it. Belt + suspenders alongside the
+        // prompt nudge above.
+        isRequired: false,
         isSearchable: s.isSearchable,
         showInList: s.showInList,
         showInCard: s.showInCard,

@@ -199,43 +199,11 @@ export async function writeRelaySchemaFromBlocks(
 }
 
 // ── Public API ─────────────────────────────────────────────────────
-
-export interface RelaySchemaGenerationResult {
-  success: boolean;
-  generated: Array<{
-    slug: string;
-    name: string;
-    fieldCount: number;
-    blockCount: number;
-  }>;
-  skipped: Array<{ slug: string; reason: string }>;
-  error?: string;
-}
-
-export async function generateRelaySchemasFromRegistryAction(): Promise<RelaySchemaGenerationResult> {
-  const generated: RelaySchemaGenerationResult['generated'] = [];
-  const skipped: RelaySchemaGenerationResult['skipped'] = [];
-
-  try {
-    const groups = groupBlocksByModule(ALL_BLOCKS_DATA);
-
-    for (const [slug, blocks] of groups) {
-      const res = await writeRelaySchemaFromBlocks(slug, blocks);
-      if ('skipped' in res) {
-        skipped.push({ slug, reason: res.reason });
-      } else {
-        generated.push(res);
-      }
-    }
-
-    return { success: true, generated, skipped };
-  } catch (err: any) {
-    console.error('[relay-schema-generate] failed:', err);
-    return {
-      success: false,
-      generated,
-      skipped,
-      error: err?.message ?? 'unknown',
-    };
-  }
-}
+//
+// Bulk "generate everything from scratch" used to live here as
+// `generateRelaySchemasFromRegistryAction`. Removed in PR-fix-3 —
+// the per-vertical "Generate + Enrich" button on /admin/relay/data
+// (relay-schema-bulk.ts) is the single supported entry point now,
+// and reuses `writeRelaySchemaFromBlocks` above for the same write
+// behaviour, slug by slug. Two buttons doing overlapping work was
+// confusing.
