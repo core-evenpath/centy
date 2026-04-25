@@ -9,14 +9,20 @@
 //     a clean baseline
 //   - Recovering from a bad state during testing
 //
+// Each doc carries its `schema.fields` array inline, so deleting the
+// doc deletes its field definitions too — clearing schemas clears
+// the fields. Partner-side `businessModules` items are NOT touched
+// (intentional; admin-side reset shouldn't wipe partner data).
+//
 // After running, partner test-chat falls back to design samples for
 // every block (since no schemas exist). Admin should re-run
-// "Generate + Enrich" per vertical to rebuild.
+// "Generate + Enrich" to rebuild.
 //
 // Returns a list of deleted slugs so the UI can confirm the reset
 // landed and surface them in a result panel.
 
 import { db as adminDb } from '@/lib/firebase-admin';
+import { revalidatePath } from 'next/cache';
 
 export interface ClearSchemasResult {
   success: boolean;
@@ -31,6 +37,10 @@ export async function clearAllRelaySchemasAction(): Promise<ClearSchemasResult> 
   try {
     const snap = await adminDb.collection('relaySchemas').get();
     if (snap.empty) {
+      // Still revalidate so the UI catches up with reality if it
+      // was stale (e.g. last navigation cached a non-empty count).
+      revalidatePath('/admin/relay/data');
+      revalidatePath('/admin/relay/data/[slug]', 'page');
       return { success: true, deleted: 0, deletedSlugs: [] };
     }
 
@@ -49,6 +59,13 @@ export async function clearAllRelaySchemasAction(): Promise<ClearSchemasResult> 
       }
       await batch.commit();
     }
+
+    // Crucial: invalidate the analytics page (server-rendered) +
+    // schema viewer subroutes so admin's next navigation sees the
+    // empty state. Without this, router.refresh() in the UI may
+    // pull a cached server tree showing the old counts.
+    revalidatePath('/admin/relay/data');
+    revalidatePath('/admin/relay/data/[slug]', 'page');
 
     return {
       success: true,
