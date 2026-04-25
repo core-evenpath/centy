@@ -34,10 +34,12 @@ export function buildBlockData({
   partnerData,
   modules,
 }: BuildInput): Record<string, unknown> | undefined {
+  let result: Record<string, unknown> | undefined;
   switch (blockId) {
     case 'greeting':
     case 'ecom_greeting':
-      return buildGreeting(partnerData) as Record<string, unknown> | undefined;
+      result = buildGreeting(partnerData) as Record<string, unknown> | undefined;
+      break;
 
     case 'product_card':
     case 'ecom_product_card':
@@ -46,15 +48,36 @@ export function buildBlockData({
     case 'services':
     case 'menu_item':
     case 'drink_menu':
-      return buildProductCard(modules, blockId) as Record<string, unknown> | undefined;
+      result = buildProductCard(modules, blockId) as Record<string, unknown> | undefined;
+      break;
 
     case 'contact':
     case 'shared_contact':
-      return buildContact(partnerData) as Record<string, unknown> | undefined;
+      result = buildContact(partnerData) as Record<string, unknown> | undefined;
+      break;
 
     default:
-      return undefined;
+      result = undefined;
   }
+
+  // ── PR fix-15: thread partner currency into every envelope ────────
+  //
+  // Block renderers (cart, product-card, rag-context-builder) read
+  // `data.currency` to drive formatMoney. Without this thread the
+  // renderers fall back to the literal default ('INR'), so a USD
+  // partner's test-chat would render rupees regardless of the value
+  // they configured in BusinessIdentityCard. Layering the partner
+  // currency at envelope level lets the renderer use it while
+  // per-item `currency` (when set on a module item) still wins.
+  if (result && !result.currency) {
+    const personaCurrency =
+      partnerData?.businessPersona?.identity?.currency;
+    if (typeof personaCurrency === 'string' && personaCurrency.trim()) {
+      result.currency = personaCurrency.trim().toUpperCase();
+    }
+  }
+
+  return result;
 }
 
 // ── greeting ─────────────────────────────────────────────────────────
