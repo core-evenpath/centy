@@ -52,4 +52,34 @@ describe('Transaction flow definitions (PR fix-13)', () => {
       expect(flow.narrative.length).toBeGreaterThan(40);
     }
   });
+
+  // ── Regression test for PR fix-13a ────────────────────────────────
+  //
+  // The first cut of EngineShell built its block lookup from the 5
+  // per-engine catalogs (filtered by `engines: [...]`), which silently
+  // dropped cross-engine blocks like `booking_confirmation`
+  // (engines: ['service']) and `service_package` (no booking tag). The
+  // strip then rendered "⚠ block id not in registry" for those tiles.
+  //
+  // This test asserts the same lookup the runtime now uses
+  // (ALL_BLOCKS_DATA) successfully resolves every flow blockId, AND
+  // that we have at least one cross-engine reference in each flow so
+  // we don't regress to a same-engine-only model accidentally.
+  it('every flow referenced block resolves through the full ALL_BLOCKS_DATA map', () => {
+    const lookup = new Map(ALL_BLOCKS_DATA.map((b) => [b.id, b]));
+    for (const flow of FLOW_DEFINITIONS) {
+      const ids = [
+        ...flow.happyPath.map((s) => s.blockId),
+        ...flow.chatExample
+          .filter((t) => t.from === 'bot' && t.blockId)
+          .map((t) => (t as { blockId: string }).blockId),
+      ];
+      for (const id of ids) {
+        expect(
+          lookup.get(id),
+          `${flow.label}: lookup returned undefined for "${id}"`,
+        ).toBeDefined();
+      }
+    }
+  });
 });

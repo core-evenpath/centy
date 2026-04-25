@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Engine } from '@/lib/relay/engine-types';
 import { getAllowedBlocksForFunctionAndEngine } from '@/lib/relay/admin-block-registry';
 import type { ServerBlockData } from '../../blocks/previews/_registry-data';
+import { ALL_BLOCKS_DATA } from '../../blocks/previews/_registry-data';
 import { EngineTabs, ACTIVATED_ENGINES, ENGINE_META } from './EngineTabs';
 import { EnginePipeline } from './EnginePipeline';
 import { FlowNarrative } from './FlowNarrative';
@@ -48,17 +49,18 @@ export default function EngineShell() {
   const engineActivated = ACTIVATED_ENGINES.has(activeEngine);
   const flow = getFlowByEngine(activeEngine);
 
-  // Lookup map for the happy-path strip — needs to resolve blockIds
-  // to actual ServerBlockData. Build from the union of all engine
-  // catalogs so cross-engine blocks (e.g. shared `greeting`) resolve
-  // even if they don't appear in the current engine's catalog.
+  // Lookup map for the happy-path strip — built from the FULL block
+  // registry, not from the per-engine catalogs. Happy paths cross
+  // engine boundaries on purpose (a Booking journey ends with a
+  // shared `contact` block; a Lead journey reuses
+  // `booking_confirmation` which is tagged engines: ['service']).
+  // Filtering by the current engine's catalog would silently drop
+  // those blocks and surface as "block id not in registry" tiles.
   const blockById = useMemo(() => {
     const map: Record<string, ServerBlockData> = {};
-    for (const list of Object.values(catalogs)) {
-      for (const b of list) map[b.id] = b;
-    }
+    for (const b of ALL_BLOCKS_DATA) map[b.id] = b;
     return map;
-  }, [catalogs]);
+  }, []);
 
   // Reset hover state when switching tabs.
   const handleTabChange = (engine: Engine) => {
