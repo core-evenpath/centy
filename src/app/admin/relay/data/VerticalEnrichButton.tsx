@@ -127,14 +127,20 @@ export default function VerticalEnrichButton() {
             {lastResult.schemas.map((s) => (
               <li key={s.slug}>
                 <code>{s.slug}</code> —{' '}
-                {s.skipped ? (
-                  <span className="text-amber-700">skipped: {s.skipped}</span>
-                ) : s.error ? (
+                {s.error ? (
                   <span className="text-red-700">error: {s.error}</span>
                 ) : (
                   <>
                     {s.deterministicFields} seed + {s.aiFields} AI ={' '}
                     <strong>{s.deterministicFields + s.aiFields}</strong> fields
+                    {s.seededFromDefaults && (
+                      <span
+                        className="ml-1.5 text-amber-700"
+                        title="Consumer blocks had no reads[] annotated — seeded with universal defaults (name / description / image_url). AI did most of the work."
+                      >
+                        (default seed)
+                      </span>
+                    )}
                   </>
                 )}
               </li>
