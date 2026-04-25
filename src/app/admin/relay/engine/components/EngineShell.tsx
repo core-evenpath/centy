@@ -1,26 +1,38 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Engine } from '@/lib/relay/engine-types';
 import { getAllowedBlocksForFunctionAndEngine } from '@/lib/relay/admin-block-registry';
+import type { ServerBlockData } from '../../blocks/previews/_registry-data';
 import { EngineTabs, ACTIVATED_ENGINES, ENGINE_META } from './EngineTabs';
 import { EnginePipeline } from './EnginePipeline';
+import { FlowNarrative } from './FlowNarrative';
+import { HappyPathStrip } from './HappyPathStrip';
+import { ChatExample } from './ChatExample';
+import { getFlowByEngine } from './flow-definitions';
 
-// ── Block Engine (admin) ────────────────────────────────────────────
+// ── Block Engine → Transaction Flows (PR fix-13) ────────────────────
 //
-// Engine-scoped view of the block catalog. Pick an engine tab and see
-// every block that engine can run, bucketed by canonical stage. No
-// partner context — this page is purely "what does an engine look
-// like across all sub-verticals".
+// The page now answers "what happens when someone buys / books /
+// leads / engages / asks?" instead of "what blocks does each engine
+// own?". Per-engine tab renders three sections:
 //
-// Partner-scoped engine health lives at /admin/relay/health, which is
-// the right home for diagnostics tied to a specific partner's data.
+//   1. FlowNarrative   — plain-English description of the journey
+//   2. HappyPathStrip  — required + optional block ribbon left → right
+//   3. ChatExample     — sample conversation with synced highlights
+//
+// The original 7-stage pipeline is preserved as a collapsed "All
+// blocks in catalog" expandable below, so admins who do need the
+// flat catalog haven't lost it — but it's no longer the front door.
 
 export default function EngineShell() {
-  const [activeEngine, setActiveEngine] = useState<Engine>('booking');
+  const [activeEngine, setActiveEngine] = useState<Engine>('commerce');
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [showAllBlocks, setShowAllBlocks] = useState(false);
 
-  // No partner context here, so `selectedFunctionId` is always null —
-  // the helper returns the full cross-vertical catalog for the engine.
+  // Per-engine catalog. No partner context here, so the helper
+  // returns the full cross-vertical block list for each engine.
   const catalogs = useMemo(
     () => ({
       booking: getAllowedBlocksForFunctionAndEngine(null, 'booking'),
@@ -33,23 +45,109 @@ export default function EngineShell() {
   );
 
   const engineCatalog = catalogs[activeEngine as keyof typeof catalogs];
-  const meta = ENGINE_META[activeEngine];
   const engineActivated = ACTIVATED_ENGINES.has(activeEngine);
+  const flow = getFlowByEngine(activeEngine);
+
+  // Lookup map for the happy-path strip — needs to resolve blockIds
+  // to actual ServerBlockData. Build from the union of all engine
+  // catalogs so cross-engine blocks (e.g. shared `greeting`) resolve
+  // even if they don't appear in the current engine's catalog.
+  const blockById = useMemo(() => {
+    const map: Record<string, ServerBlockData> = {};
+    for (const list of Object.values(catalogs)) {
+      for (const b of list) map[b.id] = b;
+    }
+    return map;
+  }, [catalogs]);
+
+  // Reset hover state when switching tabs.
+  const handleTabChange = (engine: Engine) => {
+    setHoveredBlockId(null);
+    setActiveEngine(engine);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <EngineTabs active={activeEngine} onChange={setActiveEngine} />
+      <EngineTabs active={activeEngine} onChange={handleTabChange} />
 
-      {engineActivated && engineCatalog ? (
-        <>
-          <div style={{ fontSize: 12, color: '#7a7a70', marginBottom: 4 }}>
-            {engineCatalog.length} {meta.label.toLowerCase()} blocks across all sub-verticals,
-            bucketed by canonical stage.
-          </div>
-          <EnginePipeline blocks={engineCatalog} />
-        </>
-      ) : (
+      {!engineActivated || !flow || !engineCatalog ? (
         <ComingSoon engine={activeEngine} />
+      ) : (
+        <>
+          <FlowNarrative flow={flow} catalogSize={engineCatalog.length} />
+
+          <HappyPathStrip
+            flow={flow}
+            blockById={blockById}
+            highlightedBlockId={hoveredBlockId}
+            onHover={setHoveredBlockId}
+          />
+
+          <ChatExample
+            flow={flow}
+            highlightedBlockId={hoveredBlockId}
+            onHover={setHoveredBlockId}
+          />
+
+          {/* All-blocks expandable — keeps the legacy 7-stage
+              pipeline available without making it the primary view. */}
+          <section
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e8e4dc',
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowAllBlocks((v) => !v)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '14px 16px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {showAllBlocks ? (
+                  <ChevronDown size={16} color="#7a7a70" />
+                ) : (
+                  <ChevronRight size={16} color="#7a7a70" />
+                )}
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1a18' }}>
+                  All blocks in this flow
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    background: '#f7f3ec',
+                    color: '#3d3d38',
+                    padding: '2px 8px',
+                    borderRadius: 10,
+                    fontWeight: 500,
+                  }}
+                >
+                  {engineCatalog.length}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: '#7a7a70' }}>
+                {showAllBlocks ? 'Hide' : 'Show'} canonical-stage grid
+              </span>
+            </button>
+            {showAllBlocks && (
+              <div style={{ padding: '0 16px 16px' }}>
+                <EnginePipeline blocks={engineCatalog} />
+              </div>
+            )}
+          </section>
+        </>
       )}
     </div>
   );
@@ -57,7 +155,6 @@ export default function EngineShell() {
 
 function ComingSoon({ engine }: { engine: Engine }) {
   const meta = ENGINE_META[engine];
-  const auto = ACTIVATED_ENGINES.has(engine);
   return (
     <div
       style={{
@@ -77,12 +174,12 @@ function ComingSoon({ engine }: { engine: Engine }) {
         {meta.emoji}
       </div>
       <div style={{ fontSize: 16, fontWeight: 600, color: '#3d3d38' }}>
-        {meta.label} engine — coming in Phase 2
+        {meta.label} flow — coming in Phase 2
       </div>
       <div style={{ fontSize: 12, maxWidth: 420 }}>
-        {auto
-          ? 'This engine is already tagged and resolving; UI wiring ships in a follow-up milestone.'
-          : 'This engine is part of the Phase 2 rollout. Block tagging, flow templates, and Health coverage will arrive with the per-engine milestone.'}
+        This flow is part of the Phase 2 rollout. Block tagging, flow
+        templates, and Health coverage will arrive with the per-flow
+        milestone.
       </div>
     </div>
   );
