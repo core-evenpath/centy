@@ -22,6 +22,7 @@ import {
   type RelayVertical,
 } from '@/lib/relay/relay-verticals';
 import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 
 export interface PartnerSchemaCard {
   slug: string;
@@ -313,12 +314,38 @@ export async function seedAllVerticalSchemasAction(
       };
     }
 
-    // ── Schemas in this vertical (+ shared) ──
-    const schemasSnap = await adminDb.collection('relaySchemas').get();
-    const targetSchemas = schemasSnap.docs.filter((d) => {
-      const v = getVerticalForSlug(d.id);
-      return v === vertical || v === 'shared';
+    // ── Slugs in this vertical (+ shared) ──
+    //
+    // PR fix-22: iterate the BLOCK REGISTRY (the partner-visible
+    // catalog) instead of relaySchemas (admin store). The mismatch
+    // between the two is exactly what made some "Data you need to
+    // upload" sections silently empty: the checklist references
+    // block.module slugs the admin hasn't generated relaySchemas docs
+    // for yet. seedSampleItemsAction → deriveSampleItemsFromSchema's
+    // minimal-items fallback handles those slugs gracefully.
+    const targetSlugs = new Set<string>();
+    for (const block of ALL_BLOCKS_DATA) {
+      if (!block.module) continue;
+      const v = getVerticalForSlug(block.module);
+      if (v === vertical || v === 'shared') {
+        targetSlugs.add(block.module);
+      }
+    }
+    const targetSchemas = Array.from(targetSlugs).map((slug) => {
+      // Prefer relaySchemas doc when available (richer name), but
+      // synthesize a stub when missing so the rest of the action
+      // works the same.
+      return { id: slug, data: () => ({ name: undefined }) };
     });
+
+    // Hydrate names from relaySchemas in one pass for nicer per-schema
+    // breakdown messages.
+    const schemasSnap = await adminDb.collection('relaySchemas').get();
+    const nameBySlug = new Map<string, string>();
+    for (const doc of schemasSnap.docs) {
+      const data = doc.data() as any;
+      if (typeof data?.name === 'string') nameBySlug.set(doc.id, data.name);
+    }
 
     if (targetSchemas.length === 0) {
       return {
@@ -339,7 +366,7 @@ export async function seedAllVerticalSchemasAction(
     const perSchema = await Promise.all(
       targetSchemas.map(async (doc) => {
         const slug = doc.id;
-        const name = (doc.data() as any)?.name as string | undefined;
+        const name = nameBySlug.get(slug);
         try {
           const res = await seedSampleItemsAction(partnerId, slug, userId, {
             skipIfItemsExist: true,

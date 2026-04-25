@@ -11,32 +11,19 @@ import {
     Loader2,
     Sparkles,
     Clock3,
-    Wand2,
     PlusCircle,
-    Eraser,
 } from 'lucide-react';
 import {
     getModuleSampleSummaryAction,
     type ModuleSampleSummary,
 } from '@/actions/relay-test-chat-actions';
 import {
-    quickStartTaxonomyDataAction,
     seedSampleItemsAction,
-    clearSampleItemsForModulesAction,
 } from '@/actions/relay-sample-data-actions';
 import type {
     DataSection,
     FunctionDataGuide,
 } from '@/lib/relay/block-data-guide';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 
 // ── Data you need to upload to get your blocks working ──────────────
 //
@@ -66,10 +53,7 @@ export default function BlockDataChecklist({
 }: Props) {
     const [summaries, setSummaries] = useState<Record<string, ModuleSampleSummary>>({});
     const [loadingSlugs, setLoadingSlugs] = useState<Set<string>>(new Set());
-    const [isSeedingAll, setIsSeedingAll] = useState(false);
     const [seedingSlug, setSeedingSlug] = useState<string | null>(null);
-    const [isClearOpen, setIsClearOpen] = useState(false);
-    const [isClearing, setIsClearing] = useState(false);
     const [reloadToken, setReloadToken] = useState(0);
     const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -137,63 +121,10 @@ export default function BlockDataChecklist({
         }
     };
 
-    const handleQuickStart = async () => {
-        if (!userId) return;
-        setIsSeedingAll(true);
-        try {
-            const res = await quickStartTaxonomyDataAction(partnerId, guide.functionId, userId);
-            if (res.success) {
-                const total = res.sectionsSeeded.reduce((acc, s) => acc + s.created, 0);
-                toast.success(
-                    total > 0
-                        ? `Loaded sample data across ${res.sectionsSeeded.length} sections (${total} items)`
-                        : 'All sections already have data',
-                );
-                setReloadToken((t) => t + 1);
-            } else {
-                toast.error(res.error || 'Could not load sample data');
-            }
-        } catch (err: any) {
-            toast.error(err?.message || 'Could not load sample data');
-        } finally {
-            setIsSeedingAll(false);
-        }
-    };
-
-    const handleClearSamples = async () => {
-        if (uniqueSlugs.length === 0) {
-            setIsClearOpen(false);
-            return;
-        }
-        setIsClearing(true);
-        try {
-            const res = await clearSampleItemsForModulesAction(partnerId, uniqueSlugs);
-            if (res.success) {
-                const total = res.sectionsCleared.reduce((acc, s) => acc + s.deleted, 0);
-                toast.success(
-                    total > 0
-                        ? `Cleared ${total} item${total === 1 ? '' : 's'} across ${res.sectionsCleared.length} module${res.sectionsCleared.length === 1 ? '' : 's'}`
-                        : 'Modules are already empty',
-                );
-                setIsClearOpen(false);
-                setReloadToken((t) => t + 1);
-            } else {
-                toast.error(res.error || 'Could not clear sample data');
-            }
-        } catch (err: any) {
-            toast.error(err?.message || 'Could not clear sample data');
-        } finally {
-            setIsClearing(false);
-        }
-    };
-
-    // Disable "Clear sample data" when every module-backed section is
-    // already empty — nothing to clear, and the destructive dialog would
-    // just confuse the partner.
-    const hasAnyItems = uniqueSlugs.some((slug) => {
-        const sum = summaries[slug];
-        return sum && sum.enabled && sum.total > 0;
-    });
+    // PR fix-22: removed handleQuickStart + handleClearSamples + the
+    // hasAnyItems / requiredSections / readyCount roll-up. The single
+    // "Generate sample data" CTA on /partner/relay/data and
+    // /partner/relay/test-chat header owns this behaviour now.
 
     useEffect(() => {
         if (!highlightSectionId) return;
@@ -202,14 +133,6 @@ export default function BlockDataChecklist({
         const timer = setTimeout(() => onHighlightConsumed?.(), 1800);
         return () => clearTimeout(timer);
     }, [highlightSectionId, onHighlightConsumed]);
-
-    // Readiness roll-up across required sections.
-    const requiredSections = guide.sections.filter((s) => s.status === 'required');
-    const readyCount = requiredSections.filter((s) => {
-        if (!s.moduleSlug) return false;
-        const sum = summaries[s.moduleSlug];
-        return sum && sum.enabled && sum.total > 0;
-    }).length;
 
     return (
         <section className="rounded-xl border bg-card">
@@ -230,113 +153,9 @@ export default function BlockDataChecklist({
                         . Add items there and every block that reads from the module picks them up in the chat.
                     </p>
                 </div>
-                <div className="shrink-0 flex items-center gap-2">
-                    {requiredSections.length > 0 && (
-                        <div
-                            className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                                readyCount === requiredSections.length
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                    : 'bg-muted/50'
-                            }`}
-                        >
-                            {readyCount} / {requiredSections.length} required ready
-                        </div>
-                    )}
-                    {userId && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={handleQuickStart}
-                                disabled={isSeedingAll || isClearing}
-                                className="inline-flex items-center gap-1.5 rounded-md border bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {isSeedingAll ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Wand2 className="h-3.5 w-3.5" />
-                                )}
-                                {isSeedingAll ? 'Loading samples…' : 'Start with sample data'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setIsClearOpen(true)}
-                                disabled={isSeedingAll || isClearing || !hasAnyItems}
-                                title={
-                                    hasAnyItems
-                                        ? 'Delete every item in the modules below'
-                                        : 'Nothing to clear yet'
-                                }
-                                className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {isClearing ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Eraser className="h-3.5 w-3.5" />
-                                )}
-                                {isClearing ? 'Clearing…' : 'Clear sample data'}
-                            </button>
-                        </>
-                    )}
-                </div>
+                <div className="shrink-0" />
             </header>
 
-            <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-destructive">
-                            <Eraser className="h-5 w-5" />
-                            Clear sample data?
-                        </DialogTitle>
-                        <DialogDescription asChild>
-                            <div className="space-y-3 pt-2">
-                                <p>
-                                    This deletes <strong>every item</strong> in the modules that power this
-                                    Test Chat — including anything you edited or added yourself.
-                                </p>
-                                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
-                                    <div className="font-semibold text-foreground mb-1">Modules affected</div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {uniqueSlugs.map((slug) => (
-                                            <span
-                                                key={slug}
-                                                className="inline-flex items-center rounded border bg-background px-1.5 py-0.5"
-                                            >
-                                                {slug}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Modules stay enabled so you can re-seed or add items manually right after.
-                                </p>
-                            </div>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="mt-4">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setIsClearOpen(false)}
-                            disabled={isClearing}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleClearSamples}
-                            disabled={isClearing}
-                        >
-                            {isClearing ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Clearing…
-                                </>
-                            ) : (
-                                'Yes, clear everything'
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             <div className="divide-y">
                 {guide.sections.map((section) => {
