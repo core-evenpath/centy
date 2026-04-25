@@ -28,7 +28,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY,
 });
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.1-pro-preview';
 
 // Field types we accept from the LLM. Anything outside this set is
 // dropped during validation — Gemini occasionally hallucinates types
@@ -279,10 +279,13 @@ export async function appendFieldsToRelaySchemaAction(
       appended++;
     }
 
+    const stamp = new Date().toISOString();
     await ref.update({
       'schema.fields': nextFields,
-      lastEnrichedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      lastEnrichedAt: stamp,
+      lastEnrichedModel: MODEL,
+      lastEnrichedFieldCount: appended,
+      updatedAt: stamp,
     });
 
     return { success: true, appended };
