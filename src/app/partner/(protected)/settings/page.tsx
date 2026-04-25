@@ -27,6 +27,7 @@ import BusinessProfileAgent from '@/components/partner/settings/BusinessProfileA
 import AutoFillPreviewModal from '@/components/partner/settings/AutoFillPreviewModal';
 import WebsiteImportPreviewModal from '@/components/partner/settings/WebsiteImportPreviewModal';
 import SchemaBusinessProfile from '@/components/partner/settings/SchemaBusinessProfile';
+import BusinessIdentityCard from '@/components/partner/settings/BusinessIdentityCard';
 import { Building2, Trash2 } from 'lucide-react';
 import { useTaxonomyIndustries } from '@/hooks/use-taxonomy';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1280,6 +1281,12 @@ const SettingsUltimate = () => {
               <div className="-m-4 md:-m-8">
                 {/* Business Profile Sections */}
                 <div className="space-y-6">
+                  <div className="px-4 md:px-8 pt-4 md:pt-8">
+                    <BusinessIdentityCard
+                      persona={persona}
+                      onUpdate={handleFieldUpdate}
+                    />
+                  </div>
                   <SchemaBusinessProfile
                     partnerId={partnerId}
                     persona={persona}
