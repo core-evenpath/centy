@@ -38,6 +38,15 @@ export interface BlockModuleBinding {
   driftFields?: string[];
   /** Field names from the module's live schema (for side-by-side UI). */
   moduleSchemaFields?: string[];
+
+  // ── PR E11 ────────────────────────────────────────────────────────
+  /**
+   * False when admin has explicitly unbound this block from its
+   * schema via the per-block toggle on /admin/relay/data/[slug].
+   * Default true (binding is the expected case). Unbound blocks
+   * skip drift detection and render dimmed in the consumer panel.
+   */
+  bindsSchema?: boolean;
 }
 
 export interface ModuleBlockUsage {

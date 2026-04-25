@@ -21,6 +21,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getRelaySchemaBySlugAction } from '@/actions/relay-schema-read';
+import { loadBlockSchemaBindingsAction } from '@/actions/relay-block-binding';
 import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 import {
   getBlocksForModule,
@@ -60,6 +61,12 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
   const schema = result.data;
   const consumerBlocks = getBlocksForModule(slug, ALL_BLOCKS_DATA);
   const engines = getEnginesForModule(slug, ALL_BLOCKS_DATA);
+
+  // PR E11: per-block binding overrides. Loaded server-side so the
+  // first paint of the consumer panel shows the right toggle state
+  // without a client-side round-trip.
+  const bindingsRes = await loadBlockSchemaBindingsAction();
+  const initialBindings = bindingsRes.success ? bindingsRes.bindings : {};
 
   // Surface provenance: when this schema was last derived from the
   // block registry, and when it was last enriched by AI. Helps admin
@@ -123,6 +130,7 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
             moduleSlug={slug}
             blocks={consumerBlocks}
             engines={engines}
+            initialBindings={initialBindings}
           />
         </div>
       </div>

@@ -23,6 +23,7 @@ import {
   getEnginesForModule,
   getFieldDriftForBlock,
 } from '@/lib/relay/block-module-graph';
+import { loadBlockSchemaBindingsAction } from '@/actions/relay-block-binding';
 import type {
   BlockModuleBinding,
   ModuleBlockUsage,
@@ -117,9 +118,17 @@ function bindBlock(
   modules: Map<string, ModuleInfo>,
   counts: Map<string, ModuleCounts>,
   configured: Set<string>,
+  unboundSet: Set<string>,
 ): BlockModuleBinding {
   const verticals = resolveBlockVerticals(block, verticalMap);
-  const moduleSlug = block.module ?? null;
+  // PR E11: admin can override the implicit binding declared by
+  // block.module via /admin/relay/data/[slug]'s toggle. When that
+  // override flips false, treat the block as if it had no module
+  // for analytics purposes — drift gets zero, consumer counts skip
+  // it, etc. The original block.module value still exists on the
+  // block; we just suppress its effect downstream.
+  const overrideUnbound = unboundSet.has(block.id);
+  const moduleSlug = overrideUnbound ? null : block.module ?? null;
   const binding: BlockModuleBinding = {
     blockId: block.id,
     blockLabel: block.label,
@@ -135,6 +144,7 @@ function bindBlock(
     reads: block.reads,
     engines: block.engines,
     noModuleReason: block.noModuleReason,
+    bindsSchema: !overrideUnbound,
   };
 
   if (!moduleSlug) {
@@ -197,10 +207,11 @@ function buildModuleUsage(
 
 export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAnalyticsResult> {
   try {
-    const [modules, configured, counts] = await Promise.all([
+    const [modules, configured, counts, bindingsRes] = await Promise.all([
       loadRelaySchemas(),
       loadConfiguredBlockIds(),
       loadModuleItemCounts(),
+      loadBlockSchemaBindingsAction(),
     ]);
 
     const verticalMap = buildBlockVerticalMap(
@@ -208,8 +219,17 @@ export async function getRelayModuleAnalyticsAction(): Promise<GetRelayModuleAna
       SHARED_BLOCK_IDS_DATA,
     );
 
+    // PR E11: collect block ids the admin has explicitly unbound from
+    // their family schema. Passed to bindBlock to suppress drift +
+    // module-side analytics for those ids.
+    const unboundSet = new Set(
+      Object.entries(bindingsRes.bindings)
+        .filter(([, bound]) => bound === false)
+        .map(([id]) => id),
+    );
+
     const bindings: BlockModuleBinding[] = ALL_BLOCKS_DATA.map((b) =>
-      bindBlock(b, verticalMap, modules, counts, configured),
+      bindBlock(b, verticalMap, modules, counts, configured, unboundSet),
     );
 
     const connectedBlocks = bindings.filter((b) => !b.isDark);
