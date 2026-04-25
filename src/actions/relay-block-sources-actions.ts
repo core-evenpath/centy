@@ -2,18 +2,23 @@
 
 // ── Relay block data-source helpers ──────────────────────────────────
 //
-// Powers the /partner/relay/blocks explorer:
+// Powers the /partner/relay/blocks explorer + /partner/relay/test-chat:
 //  - `listPartnerDataSourcesAction` returns the modules + vault files a
 //    partner can wire into a block.
-//  - `getBlockPreviewDataAction` runs the same `buildBlockData` dispatch
-//    the chat route uses, honouring the partner's saved `dataSource`
-//    override so the card preview matches what visitors will see.
+//  - `getBlockPreviewDataAction` returns the data envelope for a block,
+//    in either 'sample' (default — registry sampleData, no Firestore
+//    items hit) or 'live' (partner's businessModules items) mode.
+//
+// PR fix-16a: schema lookups no longer go through systemModules — that
+// path is owned by `getBlockContextAction` reading from relaySchemas.
+// Live partner item retrieval still goes through businessModules
+// (separate concern: schema vs. partner data storage).
 
 import { db as adminDb } from '@/lib/firebase-admin';
 import { buildBlockData } from '@/lib/relay/admin-block-data';
+import { buildBlockDataFromSample } from '@/lib/relay/build-block-data-from-sample';
 import {
     getPartnerModulesAction,
-    getSystemModuleAction,
     getModuleItemsAction,
 } from '@/actions/modules-actions';
 import { getPartnerCustomizationAction, type BlockDataSource } from '@/actions/relay-customization-actions';
@@ -23,6 +28,7 @@ import {
     isProfileDriven,
     type BlockDataContract,
 } from '@/lib/relay/block-data-contracts';
+import type { SampleOrLive } from '@/lib/relay/block-context-types';
 
 export interface PartnerModuleSource {
     id: string;        // PartnerModule doc id
@@ -87,36 +93,61 @@ export async function listPartnerDataSourcesAction(
 
 export async function getBlockPreviewDataAction(
     partnerId: string,
-    blockId: string
+    blockId: string,
+    /**
+     * 'sample' (default) → registry sampleData, no Firestore item
+     *                       reads. The new test-chat default — every
+     *                       partner sees a fully populated bot
+     *                       regardless of module setup.
+     * 'live'             → partner's businessModules items. Use when
+     *                       admin/partner explicitly toggles
+     *                       "Use my live data".
+     *
+     * PR fix-16a — replaces the prior auto-only path.
+     */
+    mode: SampleOrLive = 'sample',
 ): Promise<{
     success: boolean;
     data?: Record<string, unknown>;
     source?: BlockDataSource;
+    mode?: SampleOrLive;
     error?: string;
 }> {
     try {
         if (!adminDb) return { success: false, error: 'Database not available' };
 
-        // Partner doc (for greeting/contact personas).
+        // Partner doc (used for greeting/contact personas + the currency
+        // thread shared by both modes).
         let partnerData: Record<string, any> | null = null;
         try {
             const partnerDoc = await adminDb.collection('partners').doc(partnerId).get();
             partnerData = partnerDoc.exists ? (partnerDoc.data() as Record<string, any>) : null;
         } catch { /* continue */ }
 
-        // User-saved source (if any) for this block.
+        // ── Sample mode ─────────────────────────────────────────────
+        // No Firestore items hit; envelope comes from the runtime
+        // block registry's sampleData. Currency is threaded through
+        // from persona for the formatMoney path.
+        if (mode === 'sample') {
+            const data = buildBlockDataFromSample({ blockId, partnerData });
+            return { success: true, data, mode: 'sample' };
+        }
+
+        // ── Live mode ───────────────────────────────────────────────
+        // Partner-saved source override (if any) for this block.
         const customizationRes = await getPartnerCustomizationAction(partnerId);
         const source: BlockDataSource =
             customizationRes.customization?.blockOverrides?.[blockId]?.dataSource
             || { type: 'auto' };
 
         if (source.type === 'none') {
-            return { success: true, data: undefined, source };
+            return { success: true, data: undefined, source, mode: 'live' };
         }
 
-        // Load modules — either the single selected one or everything
-        // (so `buildBlockData` can fall back to first-with-items for
-        // product_card when source.type === 'auto').
+        // Load partner items. Module display name comes from the
+        // partnerModule doc directly — no longer hits the deprecated
+        // systemModules collection, since schema metadata now lives in
+        // relaySchemas (queried via getBlockContextAction).
         const modules: Array<{ slug: string; name: string; items: any[] }> = [];
 
         if (source.type === 'module' && source.id) {
@@ -124,7 +155,6 @@ export async function getBlockPreviewDataAction(
             const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
             const pm = partnerModules.find((m: any) => m.id === source.id);
             if (pm) {
-                const systemResult = await getSystemModuleAction(pm.moduleSlug);
                 const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
                     isActive: true,
                     pageSize: 20,
@@ -134,7 +164,7 @@ export async function getBlockPreviewDataAction(
                 const items = itemsResult.success ? itemsResult.data?.items || [] : [];
                 modules.push({
                     slug: pm.moduleSlug,
-                    name: (systemResult.success && systemResult.data?.name) || pm.name || pm.moduleSlug,
+                    name: pm.name || pm.moduleSlug,
                     items,
                 });
             }
@@ -142,8 +172,6 @@ export async function getBlockPreviewDataAction(
             const partnerModulesResult = await getPartnerModulesAction(partnerId);
             const partnerModules = partnerModulesResult.success ? partnerModulesResult.data || [] : [];
             for (const pm of partnerModules.slice(0, 10)) {
-                const systemResult = await getSystemModuleAction(pm.moduleSlug);
-                if (!systemResult.success || !systemResult.data) continue;
                 const itemsResult = await getModuleItemsAction(partnerId, pm.id, {
                     isActive: true,
                     pageSize: 20,
@@ -151,7 +179,11 @@ export async function getBlockPreviewDataAction(
                     sortOrder: 'asc',
                 });
                 const items = itemsResult.success ? itemsResult.data?.items || [] : [];
-                modules.push({ slug: pm.moduleSlug, name: systemResult.data.name, items });
+                modules.push({
+                    slug: pm.moduleSlug,
+                    name: pm.name || pm.moduleSlug,
+                    items,
+                });
             }
         }
         // 'document' source currently has no structured renderer; preview
@@ -159,7 +191,7 @@ export async function getBlockPreviewDataAction(
         // exists for the given block family.
 
         const data = buildBlockData({ blockId, partnerData, modules });
-        return { success: true, data, source };
+        return { success: true, data, source, mode: 'live' };
     } catch (error: any) {
         console.error('[blocks] getBlockPreviewDataAction failed:', error);
         return { success: false, error: error.message };
