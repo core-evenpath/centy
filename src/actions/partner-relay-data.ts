@@ -33,6 +33,10 @@ export interface PartnerSchemaCard {
   itemCount: number;
   /** True when partner already has an enabled businessModule with this slug. */
   hasModule: boolean;
+  /** First N items as `{ name, subtitle? }` for the inline preview on
+   *  the consolidated /partner/relay/data view (PR fix-21). Empty
+   *  when the schema has no items. */
+  previewItems?: Array<{ id: string; name: string; subtitle?: string }>;
 }
 
 export interface PartnerSchemasResult {
@@ -137,15 +141,18 @@ export async function listPartnerSchemasAction(
       adminDb.collection(`partners/${partnerId}/businessModules`).get(),
     ]);
 
-    // Partner's enabled module slugs + item counts.
+    // Partner's enabled module slugs + item counts + moduleIds for
+    // the preview-items fetch below.
     const itemCountBySlug = new Map<string, number>();
     const enabledSlugs = new Set<string>();
+    const moduleIdBySlug = new Map<string, string>();
     for (const doc of modulesSnap.docs) {
       const data = doc.data() as any;
       const slug =
         typeof data.moduleSlug === 'string' ? data.moduleSlug : null;
       if (!slug) continue;
       enabledSlugs.add(slug);
+      moduleIdBySlug.set(slug, doc.id);
       const count =
         typeof data.activeItemCount === 'number'
           ? data.activeItemCount
@@ -154,6 +161,54 @@ export async function listPartnerSchemasAction(
             : 0;
       itemCountBySlug.set(slug, count);
     }
+
+    // ── Inline previews (PR fix-21) ──
+    // For schemas with items, fetch the first 3 items so the
+    // consolidated view can show what's in there at a glance. Done
+    // in parallel; capped to 50 modules to stay well under any
+    // request budget.
+    const previewBySlug = new Map<
+      string,
+      Array<{ id: string; name: string; subtitle?: string }>
+    >();
+    const slugsWithItems = Array.from(itemCountBySlug.entries())
+      .filter(([, count]) => count > 0)
+      .map(([slug]) => slug)
+      .slice(0, 50);
+    await Promise.all(
+      slugsWithItems.map(async (slug) => {
+        const moduleId = moduleIdBySlug.get(slug);
+        if (!moduleId) return;
+        try {
+          const itemsSnap = await adminDb
+            .collection(
+              `partners/${partnerId}/businessModules/${moduleId}/items`,
+            )
+            .where('isActive', '==', true)
+            .limit(3)
+            .get();
+          previewBySlug.set(
+            slug,
+            itemsSnap.docs.map((d) => {
+              const it = d.data() as any;
+              return {
+                id: d.id,
+                name:
+                  typeof it.name === 'string' && it.name ? it.name : '(unnamed)',
+                subtitle:
+                  typeof it.description === 'string'
+                    ? it.description
+                    : typeof it.category === 'string'
+                      ? it.category
+                      : undefined,
+              };
+            }),
+          );
+        } catch {
+          // non-fatal — preview is decorative
+        }
+      }),
+    );
 
     const schemas: PartnerSchemaCard[] = schemasSnap.docs.map((doc) => {
       const data = doc.data() as any;
@@ -170,6 +225,7 @@ export async function listPartnerSchemasAction(
         fieldCount,
         itemCount: itemCountBySlug.get(slug) ?? 0,
         hasModule: enabledSlugs.has(slug),
+        previewItems: previewBySlug.get(slug),
       };
     });
 

@@ -163,15 +163,11 @@ export default function PartnerRelayDataPage() {
 
       {!loading && state?.success && totalSchemas > 0 && (
         <>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Database className="h-4 w-4" />
-            <span>
-              <strong className="text-foreground">{totalSchemas}</strong> schema
-              {totalSchemas === 1 ? '' : 's'} available ·{' '}
-              <strong className="text-foreground">{totalWithItems}</strong> with
-              your data
-            </span>
-          </div>
+          <StatsBanner
+            totalSchemas={totalSchemas}
+            totalWithItems={totalWithItems}
+            totalItems={state.schemas?.reduce((sum, s) => sum + s.itemCount, 0) ?? 0}
+          />
 
           {groups.map(({ key, schemas }) => {
             const isVertical = key !== 'orphan';
@@ -302,6 +298,7 @@ function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
 
 function SchemaCard({ schema }: { schema: PartnerSchemaCard }) {
   const hasItems = schema.itemCount > 0;
+  const previews = schema.previewItems ?? [];
   return (
     <Link
       href={`/partner/relay/data/${schema.slug}`}
@@ -309,7 +306,7 @@ function SchemaCard({ schema }: { schema: PartnerSchemaCard }) {
     >
       <div
         className={[
-          'rounded-lg border bg-card p-3 transition-colors hover:border-foreground/30',
+          'rounded-lg border bg-card p-3 transition-colors hover:border-foreground/30 flex flex-col',
           hasItems ? '' : 'border-dashed',
         ].join(' ')}
       >
@@ -356,8 +353,72 @@ function SchemaCard({ schema }: { schema: PartnerSchemaCard }) {
             )}
           </span>
         </div>
+        {previews.length > 0 && (
+          <ul className="mt-3 pt-3 border-t space-y-1">
+            {previews.map((p) => (
+              <li key={p.id} className="text-[11px] truncate" title={p.name}>
+                <span className="text-foreground">{p.name}</span>
+                {p.subtitle && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {p.subtitle}
+                  </span>
+                )}
+              </li>
+            ))}
+            {schema.itemCount > previews.length && (
+              <li className="text-[10px] text-muted-foreground italic">
+                + {schema.itemCount - previews.length} more
+              </li>
+            )}
+          </ul>
+        )}
       </div>
     </Link>
+  );
+}
+
+function StatsBanner({
+  totalSchemas,
+  totalWithItems,
+  totalItems,
+}: {
+  totalSchemas: number;
+  totalWithItems: number;
+  totalItems: number;
+}) {
+  const pct =
+    totalSchemas === 0 ? 0 : Math.round((totalWithItems / totalSchemas) * 100);
+  return (
+    <div className="rounded-xl border bg-gradient-to-br from-emerald-50/50 to-background p-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <Stat label="Schemas populated" value={`${totalWithItems} / ${totalSchemas}`} />
+        <Stat label="Total items" value={totalItems.toLocaleString()} />
+        <div className="flex-1 min-w-[180px]">
+          <div className="flex items-center justify-between text-[10px] uppercase font-semibold text-muted-foreground mb-1.5">
+            <span>Coverage</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 transition-[width] duration-500"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-lg font-bold mt-0.5">{value}</div>
+    </div>
   );
 }
 
