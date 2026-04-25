@@ -42,7 +42,9 @@ const PARTNER_LOWERCASE = {
 
 const PRODUCTS_MODULE = [
   {
-    slug: 'products',
+    // PR fix-26: slug must match block.module from the registry —
+    // product_card.module === 'ecommerce_catalog'.
+    slug: 'ecommerce_catalog',
     name: 'Products',
     items: [
       { name: 'Hoodie', price: 79.99 },
@@ -96,7 +98,7 @@ describe('buildBlockData / partner currency thread (PR fix-15)', () => {
     // partner currency for the renderer's default code path.
     const moduleWithCurrencyOnItems = [
       {
-        slug: 'products',
+        slug: 'ecommerce_catalog',
         name: 'Products',
         items: [
           { name: 'European Item', price: 39.99, currency: 'EUR' },
