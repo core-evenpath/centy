@@ -36,6 +36,7 @@ import {
   type PartnerSchemaCard,
   type PartnerSchemasResult,
 } from '@/actions/partner-relay-data';
+import { TestChatSeedSampleCTA } from '../test-chat/_TestChatSeedSampleCTA';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -120,14 +121,26 @@ export default function PartnerRelayDataPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Your Business Data</h1>
-        <p className="text-muted-foreground">
-          Schemas describe the shape of data your bot uses to answer
-          customers. Each schema lives in{' '}
-          <code className="text-xs bg-muted px-1 py-0.5 rounded">relaySchemas</code>{' '}
-          — admin manages the structure, you fill it with your items.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2 min-w-0">
+          <h1 className="text-3xl font-bold tracking-tight">Your Business Data</h1>
+          <p className="text-muted-foreground">
+            Schemas describe the shape of data your bot uses to answer
+            customers. Each schema lives in{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">relaySchemas</code>{' '}
+            — admin manages the structure, you fill it with your items.
+          </p>
+        </div>
+        {partnerId && user?.uid && (
+          <TestChatSeedSampleCTA
+            partnerId={partnerId}
+            userId={user.uid}
+            onSeeded={() => {
+              // Refetch the list so item counts show up immediately.
+              listPartnerSchemasAction(partnerId).then(setState);
+            }}
+          />
+        )}
       </header>
 
       <IdentityBanner state={state} loading={loading} />
