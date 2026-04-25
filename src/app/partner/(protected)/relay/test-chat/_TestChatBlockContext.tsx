@@ -139,14 +139,6 @@ export function TestChatBlockContext({ partnerId, blockId }: Props) {
         <Section
           icon={<Workflow className="h-4 w-4" />}
           title="Transaction flow"
-          right={
-            <Link
-              href="/admin/relay/engine"
-              className="text-[11px] text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-1"
-            >
-              Open in admin <ExternalLink className="h-3 w-3" />
-            </Link>
-          }
         >
           {flow ? (
             <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -189,10 +181,10 @@ export function TestChatBlockContext({ partnerId, blockId }: Props) {
           right={
             schema ? (
               <Link
-                href={`/admin/relay/data/${schema.slug}`}
+                href={`/partner/relay/data/${schema.slug}`}
                 className="text-[11px] text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-1"
               >
-                Edit schema <ExternalLink className="h-3 w-3" />
+                Open data <ExternalLink className="h-3 w-3" />
               </Link>
             ) : null
           }

@@ -37,16 +37,47 @@ type SampleItem = Partial<ModuleItem>;
 // Every schema gets working "Start with sample data" without per-slug
 // code edits.
 
+// Minimal sample items used when the schema doc doesn't exist in
+// relaySchemas yet (admin hasn't generated it) or has zero fields.
+// Keeps "Generate sample data" working even for slugs the admin
+// hasn't enriched — partner sees something they can edit.
+function buildMinimalSampleItems(slug: string): SampleItem[] {
+    const label = slug
+        .split('_')
+        .filter(Boolean)
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(' ');
+    return [1, 2, 3].map((i) => ({
+        name: `${label} Sample ${i}`,
+        description: `Auto-generated placeholder for ${slug}. Edit to make it real.`,
+        category: 'General',
+        price: [19.99, 29.99, 39.99][i - 1] ?? 19.99,
+        currency: 'USD',
+        isActive: true,
+    }));
+}
+
 async function deriveSampleItemsFromSchema(
     slug: string,
 ): Promise<SampleItem[] | null> {
     try {
         const doc = await adminDb.collection('relaySchemas').doc(slug).get();
-        if (!doc.exists) return null;
+        if (!doc.exists) {
+            // PR fix-22: seedAllVerticalSchemasAction now iterates the
+            // block registry, which can reference module slugs the
+            // admin hasn't generated relaySchemas docs for yet. Fall
+            // back to minimal items so the partner-side checklist
+            // never shows "NEEDS DATA" forever.
+            return buildMinimalSampleItems(slug);
+        }
         const data = doc.data() as any;
         const fields: any[] =
             data?.schema?.fields ?? data?.fields ?? [];
-        if (!Array.isArray(fields) || fields.length === 0) return null;
+        if (!Array.isArray(fields) || fields.length === 0) {
+            // Schema doc exists but has zero fields (unenriched). Same
+            // fallback applies — partner needs something to start with.
+            return buildMinimalSampleItems(slug);
+        }
 
         // Build 3 items, each populating fields with type-appropriate
         // demo values. Required fields always populated; optional fields
