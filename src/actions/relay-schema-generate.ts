@@ -120,6 +120,84 @@ function buildSchemaFields(fieldNames: string[]): ModuleFieldDefinition[] {
   });
 }
 
+// ── Per-slug helper (shared with the per-vertical bulk path) ───────
+//
+// Writes one Relay schema deterministically. Returns a
+// `{ slug, name, fieldCount, blockCount }` summary or null when the
+// slug has no annotated reads[]. Exported so PR-fix-1's
+// generateAndEnrichVerticalAction can reuse the exact same write
+// path — no two-implementations-of-the-same-thing risk.
+export interface PerSlugResult {
+  slug: string;
+  name: string;
+  fieldCount: number;
+  blockCount: number;
+}
+
+export async function writeRelaySchemaFromBlocks(
+  slug: string,
+  blocks: ReadonlyArray<ServerBlockData>,
+): Promise<PerSlugResult | { skipped: true; reason: string }> {
+  const fieldNames = unionReads(blocks);
+  if (fieldNames.length === 0) {
+    return {
+      skipped: true,
+      reason: 'No blocks declare reads[] for this slug yet.',
+    };
+  }
+  const schemaFields = buildSchemaFields(fieldNames);
+  const name = humanizeSlug(slug);
+  const now = new Date().toISOString();
+
+  await adminDb
+    .collection('relaySchemas')
+    .doc(slug)
+    .set(
+      {
+        id: slug,
+        slug,
+        name,
+        description: `Auto-generated from ${blocks.length} Relay block${
+          blocks.length === 1 ? '' : 's'
+        }. Field list is the union of block.reads[] across consumers.`,
+        icon: '📦',
+        color: '#6366f1',
+        currentVersion: 1,
+        schema: {
+          fields: schemaFields,
+          categories: [
+            { id: 'cat_general', name: 'General', icon: '📁', order: 0 },
+          ],
+        },
+        schemaHistory: {},
+        migrations: {},
+        itemLabel: 'Item',
+        itemLabelPlural: 'Items',
+        priceLabel: 'Price',
+        priceType: 'one_time',
+        defaultCurrency: 'USD',
+        settings: { ...DEFAULT_MODULE_SETTINGS },
+        applicableIndustries: [],
+        applicableFunctions: [],
+        status: 'active',
+        usageCount: 0,
+        generatedFromRegistryAt: now,
+        generatedFromBlockCount: blocks.length,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'system',
+      },
+      { merge: false },
+    );
+
+  return {
+    slug,
+    name,
+    fieldCount: schemaFields.length,
+    blockCount: blocks.length,
+  };
+}
+
 // ── Public API ─────────────────────────────────────────────────────
 
 export interface RelaySchemaGenerationResult {
@@ -140,73 +218,14 @@ export async function generateRelaySchemasFromRegistryAction(): Promise<RelaySch
 
   try {
     const groups = groupBlocksByModule(ALL_BLOCKS_DATA);
-    const now = new Date().toISOString();
 
     for (const [slug, blocks] of groups) {
-      const fieldNames = unionReads(blocks);
-      if (fieldNames.length === 0) {
-        // No block bound to this slug declares any reads — skip with
-        // an explanation so the admin knows which slug is bare.
-        skipped.push({
-          slug,
-          reason: 'No blocks declare reads[] for this slug yet (run PR C annotation).',
-        });
-        continue;
+      const res = await writeRelaySchemaFromBlocks(slug, blocks);
+      if ('skipped' in res) {
+        skipped.push({ slug, reason: res.reason });
+      } else {
+        generated.push(res);
       }
-
-      const schemaFields = buildSchemaFields(fieldNames);
-      const name = humanizeSlug(slug);
-
-      // Deterministic doc. `slug` is the Firestore doc id so the
-      // viewer and analytics both look up by slug. Overwrite every
-      // time — this is the whole point: registry → schema, no drift.
-      await adminDb
-        .collection('relaySchemas')
-        .doc(slug)
-        .set(
-          {
-            id: slug,
-            slug,
-            name,
-            description: `Auto-generated from ${blocks.length} Relay block${
-              blocks.length === 1 ? '' : 's'
-            }. Field list is the union of block.reads[] across consumers.`,
-            icon: '📦',
-            color: '#6366f1',
-            currentVersion: 1,
-            schema: {
-              fields: schemaFields,
-              categories: [
-                { id: 'cat_general', name: 'General', icon: '📁', order: 0 },
-              ],
-            },
-            schemaHistory: {},
-            migrations: {},
-            itemLabel: 'Item',
-            itemLabelPlural: 'Items',
-            priceLabel: 'Price',
-            priceType: 'one_time',
-            defaultCurrency: 'USD',
-            settings: { ...DEFAULT_MODULE_SETTINGS },
-            applicableIndustries: [],
-            applicableFunctions: [],
-            status: 'active',
-            usageCount: 0,
-            generatedFromRegistryAt: now,
-            generatedFromBlockCount: blocks.length,
-            createdAt: now,
-            updatedAt: now,
-            createdBy: 'system',
-          },
-          { merge: false },
-        );
-
-      generated.push({
-        slug,
-        name,
-        fieldCount: schemaFields.length,
-        blockCount: blocks.length,
-      });
     }
 
     return { success: true, generated, skipped };
