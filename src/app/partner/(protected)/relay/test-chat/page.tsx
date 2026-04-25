@@ -48,6 +48,10 @@ import type { RelayOrder } from '@/lib/relay/order-types';
 import { Loader2, MessageSquare, ChevronRight, Plus, Play } from 'lucide-react';
 import Link from 'next/link';
 import { T } from '@/app/admin/relay/flows/flow-helpers';
+import { TestChatIdentityStrip } from './_TestChatIdentityStrip';
+import { TestChatModeToggle } from './_TestChatModeToggle';
+import { TestChatBlockContext } from './_TestChatBlockContext';
+import type { SampleOrLive } from '@/lib/relay/block-context-types';
 
 const DEFAULT_CONFIG: RelayConfig = {
     enabled: false,
@@ -121,6 +125,22 @@ export default function PartnerRelayTestChatPage() {
     const [conversationId] = useState(() => `test_${Date.now()}`);
     const [flowMeta, setFlowMeta] = useState<TestChatFlowMeta | null>(null);
     const [seeded, setSeeded] = useState(false);
+
+    // PR fix-16b: data mode + last-fired block tracking. Mode flips
+    // the block-data path between sample (default) and live partner
+    // items. currentBlockId drives the BlockContext panel.
+    const [mode, setMode] = useState<SampleOrLive>('sample');
+    const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
+
+    // Partner identity for the strip — read from the persona doc the
+    // page already loads (see config effect below). Stored separately
+    // so the strip re-renders when persona updates.
+    const [identityStrip, setIdentityStrip] = useState<{
+        category?: string;
+        country?: string;
+        currency?: string;
+        vertical?: string | null;
+    }>({});
     const [checkoutOpen, setCheckoutOpen] = useState(false);
 
     // Home screen toggle — mirrors /admin/relay/flows: bento home is the
@@ -207,11 +227,12 @@ export default function PartnerRelayTestChatPage() {
             if (tile.sectionId && dataGuide) {
                 setHighlightSectionId(tile.sectionId);
             }
+            setCurrentBlockId(tile.id);
 
             if (!partnerId) return;
             (async () => {
                 try {
-                    const res = await getBlockPreviewDataAction(partnerId, tile.id);
+                    const res = await getBlockPreviewDataAction(partnerId, tile.id, mode);
                     if (!res.success || !res.data) return;
                     setChatMessages((prev) => {
                         const next = [...prev];
@@ -233,7 +254,7 @@ export default function PartnerRelayTestChatPage() {
                 }
             })();
         },
-        [partnerId, dataGuide],
+        [partnerId, dataGuide, mode],
     );
 
     const session = useRelaySession({
@@ -323,7 +344,12 @@ export default function PartnerRelayTestChatPage() {
                 const result = await getBusinessPersonaAction(partnerId);
                 if (cancelled) return;
                 const identity = result.persona?.identity as
-                    | { businessCategories?: SelectedBusinessCategory[] }
+                    | {
+                          businessCategories?: SelectedBusinessCategory[];
+                          industry?: { name?: string; category?: string };
+                          address?: { country?: string };
+                          currency?: string;
+                      }
                     | undefined;
                 const cats = Array.isArray(identity?.businessCategories)
                     ? identity!.businessCategories!
@@ -332,6 +358,20 @@ export default function PartnerRelayTestChatPage() {
                 if (cats.length > 0) {
                     setActiveCategoryKey(categoryKey(cats[0]));
                 }
+
+                // PR fix-16b: populate identity strip alongside the
+                // existing scenario-sidebar load. Sources match the
+                // partner BusinessIdentityCard write paths.
+                setIdentityStrip({
+                    category:
+                        identity?.industry?.name ||
+                        cats[0]?.label ||
+                        cats[0]?.functionId ||
+                        undefined,
+                    country: identity?.address?.country || undefined,
+                    currency: identity?.currency || undefined,
+                    vertical: identity?.industry?.category || null,
+                });
             } catch (e) {
                 console.error('Failed to load business categories:', e);
             } finally {
@@ -525,6 +565,7 @@ export default function PartnerRelayTestChatPage() {
                     stageId: data.flowMeta?.stageId,
                 };
                 setChatMessages((prev) => [...prev, assistantMsg]);
+                if (assistantMsg.blockId) setCurrentBlockId(assistantMsg.blockId);
 
                 if (data.flowMeta) {
                     setFlowMeta({
@@ -582,7 +623,7 @@ export default function PartnerRelayTestChatPage() {
                 href="https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700;800&display=swap"
                 rel="stylesheet"
             />
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
                         <Play className="h-6 w-6" /> Test Chat
@@ -591,7 +632,15 @@ export default function PartnerRelayTestChatPage() {
                         Preview your Relay assistant. Scenarios mirror the Business Categories you selected in Settings.
                     </p>
                 </div>
+                <TestChatModeToggle mode={mode} onChange={setMode} />
             </div>
+
+            <TestChatIdentityStrip
+                category={identityStrip.category}
+                country={identityStrip.country}
+                currency={identityStrip.currency}
+                vertical={identityStrip.vertical}
+            />
 
             <div
                 style={{
@@ -850,6 +899,15 @@ export default function PartnerRelayTestChatPage() {
             <div style={{ maxWidth: 420, margin: '24px auto 0' }}>
                 <TestChatFlowPanel flowMeta={flowMeta} theme={relayTheme} />
             </div>
+
+            {partnerId && (
+                <div style={{ maxWidth: 720, margin: '20px auto 0' }}>
+                    <TestChatBlockContext
+                        partnerId={partnerId}
+                        blockId={currentBlockId}
+                    />
+                </div>
+            )}
 
             {dataGuide && (
                 <div className="mt-8">
