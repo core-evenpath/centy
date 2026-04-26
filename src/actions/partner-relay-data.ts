@@ -61,7 +61,7 @@ export interface PartnerSchemaCard {
    * the partner tile to show "Appears in: X, Y, …" so partners can see
    * where their content surfaces without learning block ids.
    */
-  appearsIn?: Array<{ id: string; label: string }>;
+  appearsIn?: Array<{ id: string; label: string; description: string }>;
 }
 
 export interface PartnerSchemasResult {
@@ -307,7 +307,7 @@ export async function listPartnerSchemasAction(
       // partners can't actually use.
       const consumerBlocks = getBlocksForModule(slug, ALL_BLOCKS_DATA)
         .filter((b) => b.status === 'active')
-        .map((b) => ({ id: b.id, label: b.label }));
+        .map((b) => ({ id: b.id, label: b.label, description: b.desc ?? '' }));
       return {
         slug,
         name: rawName,

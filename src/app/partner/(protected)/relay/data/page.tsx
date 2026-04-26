@@ -40,12 +40,14 @@ import {
   type PartnerSchemaCard,
   type PartnerSchemasResult,
 } from '@/actions/partner-relay-data';
+import { loadPartnerDisabledBlocksAction } from '@/actions/partner-block-overrides';
 import {
   CONTENT_CATEGORY_META,
   orderedCategories,
   type ContentCategory,
 } from '@/lib/relay/content-categories';
 import { TestChatSeedSampleCTA } from '../test-chat/_TestChatSeedSampleCTA';
+import { BlockOverridesDrawer } from '@/components/partner/relay/BlockOverridesDrawer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -64,6 +66,16 @@ export default function PartnerRelayDataPage() {
 
   const [state, setState] = useState<PartnerSchemasResult | null>(null);
   const [loading, setLoading] = useState(true);
+  // Partner-wide disabled block ids (Phase 2). Loaded once on mount;
+  // mutated optimistically by the BlockOverridesDrawer toggles.
+  const [disabledBlockIds, setDisabledBlockIds] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
+  // Schema whose block-visibility drawer is currently open (one at a
+  // time). Null when nothing is open.
+  const [drawerSchema, setDrawerSchema] = useState<PartnerSchemaCard | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!partnerId) {
@@ -71,9 +83,15 @@ export default function PartnerRelayDataPage() {
       return;
     }
     setLoading(true);
-    listPartnerSchemasAction(partnerId)
-      .then((res) => {
-        setState(res);
+    Promise.all([
+      listPartnerSchemasAction(partnerId),
+      loadPartnerDisabledBlocksAction(partnerId),
+    ])
+      .then(([schemasRes, overridesRes]) => {
+        setState(schemasRes);
+        if (overridesRes.success) {
+          setDisabledBlockIds(new Set(overridesRes.disabled));
+        }
       })
       .finally(() => setLoading(false));
   }, [partnerId]);
@@ -148,11 +166,31 @@ export default function PartnerRelayDataPage() {
                   key={category}
                   category={category}
                   schemas={schemas}
+                  disabledBlockIds={disabledBlockIds}
+                  onOpenBlocks={setDrawerSchema}
                 />
               );
             })}
           </div>
         </>
+      )}
+
+      {drawerSchema && partnerId && user?.uid && (
+        <BlockOverridesDrawer
+          open={!!drawerSchema}
+          onOpenChange={(open) => {
+            if (!open) setDrawerSchema(null);
+          }}
+          partnerId={partnerId}
+          userId={user.uid}
+          schemaDisplayName={drawerSchema.displayName}
+          categorySingular={
+            CONTENT_CATEGORY_META[drawerSchema.contentCategory].singular
+          }
+          blocks={drawerSchema.appearsIn ?? []}
+          disabledBlockIds={disabledBlockIds}
+          onDisabledChange={setDisabledBlockIds}
+        />
       )}
     </div>
   );
@@ -173,9 +211,13 @@ function groupByCategory(
 function CategorySection({
   category,
   schemas,
+  disabledBlockIds,
+  onOpenBlocks,
 }: {
   category: ContentCategory;
   schemas: PartnerSchemaCard[];
+  disabledBlockIds: Set<string>;
+  onOpenBlocks: (schema: PartnerSchemaCard) => void;
 }) {
   const meta = CONTENT_CATEGORY_META[category];
   const Icon = ICON_MAP[meta.icon];
@@ -197,7 +239,13 @@ function CategorySection({
       <p className="text-xs text-muted-foreground mb-3">{meta.description}</p>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {schemas.map((s) => (
-          <SchemaTile key={s.slug} schema={s} categorySingular={meta.singular} />
+          <SchemaTile
+            key={s.slug}
+            schema={s}
+            categorySingular={meta.singular}
+            disabledBlockIds={disabledBlockIds}
+            onOpenBlocks={() => onOpenBlocks(s)}
+          />
         ))}
       </div>
     </section>
@@ -207,22 +255,37 @@ function CategorySection({
 function SchemaTile({
   schema,
   categorySingular,
+  disabledBlockIds,
+  onOpenBlocks,
 }: {
   schema: PartnerSchemaCard;
   categorySingular: string;
+  disabledBlockIds: Set<string>;
+  onOpenBlocks: () => void;
 }) {
   const hasItems = schema.itemCount > 0;
   const previews = schema.previewItems ?? [];
+  const consumerBlocks = schema.appearsIn ?? [];
+  const hiddenCount = consumerBlocks.filter((b) =>
+    disabledBlockIds.has(b.id),
+  ).length;
+
   return (
-    <Link
-      href={`/partner/relay/data/${schema.slug}`}
-      className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+    // Outer is a plain div so AppearsInRow (a button) is not nested
+    // inside an anchor — that would be invalid HTML and break a11y.
+    // The upper area (title/description/counts/previews) is a single
+    // Link that covers the natural "open this content type" affordance;
+    // the AppearsInRow at the bottom is a separate button that opens
+    // the block-visibility drawer.
+    <div
+      className={[
+        'rounded-lg border bg-card p-4 transition-colors hover:border-foreground/30 flex flex-col h-full',
+        hasItems ? '' : 'border-dashed',
+      ].join(' ')}
     >
-      <div
-        className={[
-          'rounded-lg border bg-card p-4 transition-colors hover:border-foreground/30 flex flex-col h-full',
-          hasItems ? '' : 'border-dashed',
-        ].join(' ')}
+      <Link
+        href={`/partner/relay/data/${schema.slug}`}
+        className="group flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded -m-1 p-1"
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -252,8 +315,6 @@ function SchemaTile({
           )}
         </div>
 
-        <AppearsInRow appearsIn={schema.appearsIn} />
-
         {previews.length > 0 && (
           <ul className="mt-3 pt-3 border-t space-y-1">
             {previews.map((p) => (
@@ -278,38 +339,63 @@ function SchemaTile({
             Add {categorySingular}
           </div>
         )}
-      </div>
-    </Link>
+      </Link>
+
+      {consumerBlocks.length > 0 && (
+        <AppearsInButton
+          blocks={consumerBlocks}
+          hiddenCount={hiddenCount}
+          onClick={onOpenBlocks}
+        />
+      )}
+    </div>
   );
 }
 
-function AppearsInRow({
-  appearsIn,
+function AppearsInButton({
+  blocks,
+  hiddenCount,
+  onClick,
 }: {
-  appearsIn?: Array<{ id: string; label: string }>;
+  blocks: Array<{ id: string; label: string }>;
+  hiddenCount: number;
+  onClick: () => void;
 }) {
-  if (!appearsIn || appearsIn.length === 0) return null;
   // Cap visible labels so the tile stays scannable; everything beyond
-  // the cap collapses into a "+N more" — the full list is admin-side
-  // concern, not partner-facing.
+  // the cap collapses into a "+N more". Clicking opens the
+  // BlockOverridesDrawer for fine-grained control.
   const VISIBLE = 2;
-  const visible = appearsIn.slice(0, VISIBLE);
-  const overflow = appearsIn.length - visible.length;
+  const visible = blocks.slice(0, VISIBLE);
+  const overflow = blocks.length - visible.length;
   return (
-    <div className="mt-2 text-[10px] text-muted-foreground line-clamp-1">
-      <span className="uppercase tracking-wide font-semibold mr-1">
-        Appears in
-      </span>
-      {visible.map((b, i) => (
-        <span key={b.id}>
-          {i > 0 ? ', ' : ''}
-          <span className="font-medium text-foreground/80">{b.label}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-3 pt-3 border-t text-left w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded -mx-1 px-1 transition-colors hover:bg-muted/40"
+      aria-label={`Manage where ${blocks[0]?.label ?? 'this'} appears`}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
+          Appears in
         </span>
-      ))}
-      {overflow > 0 && (
-        <span className="ml-1 italic">+{overflow} more</span>
-      )}
-    </div>
+        {hiddenCount > 0 && (
+          <span className="text-[10px] text-amber-700 font-medium">
+            {hiddenCount} hidden
+          </span>
+        )}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+        {visible.map((b, i) => (
+          <span key={b.id}>
+            {i > 0 ? ', ' : ''}
+            <span className="font-medium text-foreground/80">{b.label}</span>
+          </span>
+        ))}
+        {overflow > 0 && (
+          <span className="ml-1 italic">+{overflow} more</span>
+        )}
+      </div>
+    </button>
   );
 }
 

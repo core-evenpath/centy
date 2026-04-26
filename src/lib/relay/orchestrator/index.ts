@@ -282,15 +282,31 @@ export async function orchestrate(
 
   const policy = buildPolicyDecision(signals);
 
+  // Phase 2: partner-managed block visibility. The disabled set lives
+  // on partners/{id}.disabledBlockIds and is honored at every dispatch
+  // point so a hidden block never reaches Gemini's catalog and never
+  // gets rendered. Default state is empty — every block enabled.
+  const rawDisabled = (partner.partnerData as { disabledBlockIds?: unknown })
+    ?.disabledBlockIds;
+  const partnerDisabled = new Set(
+    Array.isArray(rawDisabled)
+      ? rawDisabled.filter((v): v is string => typeof v === 'string')
+      : [],
+  );
+
   // 7. Degraded mode: narrow the catalog to shared blocks only so the
   //    prompt doesn't ask Gemini to pick from a potentially-broken list.
   //    Partner-visible behavior degrades gracefully — never throws.
-  const effectiveAllowed = degraded
-    ? policy.allowedBlockIds.filter((id) => SHARED_BLOCK_IDS.has(id))
-    : policy.allowedBlockIds;
-  const degradedPolicy = degraded
-    ? { ...policy, allowedBlockIds: effectiveAllowed }
-    : policy;
+  //    Partner-disabled blocks are subtracted in both modes.
+  const effectiveAllowed = (
+    degraded
+      ? policy.allowedBlockIds.filter((id) => SHARED_BLOCK_IDS.has(id))
+      : policy.allowedBlockIds
+  ).filter((id) => !partnerDisabled.has(id));
+  const degradedPolicy =
+    degraded || partnerDisabled.size > 0
+      ? { ...policy, allowedBlockIds: effectiveAllowed }
+      : policy;
 
   // 7b. P3.M05.2: Q10 service-break contact-fallback. When the active
   //     engine is 'service', the catalog is empty, AND the detected

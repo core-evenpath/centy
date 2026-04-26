@@ -97,8 +97,21 @@ export async function POST(request: NextRequest) {
 
     const modules = await loadModuleSummaries(partnerId);
 
-    const seedMessages = (entryStage.blockTypes ?? []).map(
-      (blockId, idx) => ({
+    // Phase 2: honor partner block overrides. Disabled blocks are
+    // dropped from the seed entirely so they don't render in test
+    // chat — matches what the production orchestrator does for
+    // post-greeting turns.
+    const rawDisabled = (partnerData as { disabledBlockIds?: unknown })
+      ?.disabledBlockIds;
+    const disabledBlockIds = new Set(
+      Array.isArray(rawDisabled)
+        ? rawDisabled.filter((v): v is string => typeof v === 'string')
+        : [],
+    );
+
+    const seedMessages = (entryStage.blockTypes ?? [])
+      .filter((blockId) => !disabledBlockIds.has(blockId))
+      .map((blockId, idx) => ({
         id: `seed_${idx}_${blockId}`,
         role: 'assistant' as const,
         content: '',
@@ -109,8 +122,7 @@ export async function POST(request: NextRequest) {
           modules,
         }),
         stageId: entryStage.id,
-      }),
-    );
+      }));
 
     return NextResponse.json(
       {
