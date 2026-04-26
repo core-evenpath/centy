@@ -1,32 +1,38 @@
 'use client';
 
-// ── Partner-side Relay schemas (PR fix-17) ──────────────────────────
+// ── Partner-facing inventory hub (Phase 1A) ─────────────────────────
 //
-// Replaces the legacy ModulesDashboard (which read from the deprecated
-// systemModules collection — empty for partners after the schemas
-// migration). Now sources schemas from `relaySchemas` exclusively,
-// the same canonical store admin manages at /admin/relay/data.
+// Shows the partner everything they manage in one screen, organized by
+// what it IS (Products / Bookings / Offers / About) instead of what
+// internal slug it lives under. Every piece of admin jargon (slug,
+// vertical, schema, fields, modules) is intentionally hidden — the
+// partner shouldn't know those words exist.
 //
-// Layout:
-//   • Identity banner (category + country + currency from persona)
-//     — visual confirmation of context driving the filter
-//   • Per-vertical sections, partner's primary vertical expanded by
-//     default, others collapsed
-//   • Schema cards with field count + partner item count + "Add data"
-//     entry pointing into /partner/relay/data/{slug}
+// Architecture: admin owns the schema + block bindings via
+// /admin/relay/data; partner only updates content. This page is a
+// pure consumer of `listPartnerSchemasAction`, which now attaches a
+// `contentCategory` (inferred or admin-overridden) and a display name
+// per schema.
 //
-// Removed: Reset Modules dialog (no enable/reset lifecycle in the new
-// model — schemas are intrinsic, partners just fill them).
+// Replaces the previous vertical-grouped flat list. Rows still link to
+// `/partner/relay/data/{slug}` for editing — the slug is preserved as
+// a routing token, just never shown.
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Database,
   AlertCircle,
-  Globe,
-  DollarSign,
-  Building2,
   ArrowRight,
+  Building2,
+  Calendar,
+  DollarSign,
+  Globe,
+  Info,
+  Package,
+  Plus,
+  Sparkles,
+  Tag,
+  Wrench,
 } from 'lucide-react';
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import {
@@ -34,10 +40,23 @@ import {
   type PartnerSchemaCard,
   type PartnerSchemasResult,
 } from '@/actions/partner-relay-data';
+import {
+  CONTENT_CATEGORY_META,
+  orderedCategories,
+  type ContentCategory,
+} from '@/lib/relay/content-categories';
 import { TestChatSeedSampleCTA } from '../test-chat/_TestChatSeedSampleCTA';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const ICON_MAP = {
+  package: Package,
+  tag: Tag,
+  calendar: Calendar,
+  info: Info,
+  wrench: Wrench,
+  sparkles: Sparkles,
+} as const;
 
 export default function PartnerRelayDataPage() {
   const { user, currentWorkspace } = useMultiWorkspaceAuth();
@@ -59,9 +78,9 @@ export default function PartnerRelayDataPage() {
       .finally(() => setLoading(false));
   }, [partnerId]);
 
-  // PR fix-25: render only schemas that match the partner's vertical
-  // (or are 'shared' / cross-vertical). Other verticals' schemas are
-  // hidden — they'd be irrelevant noise on the partner page.
+  // Show only schemas in the partner's vertical (or shared). Other
+  // verticals' schemas are irrelevant noise — admin layer keeps them
+  // out of the partner's view.
   const visibleSchemas = useMemo(() => {
     const partnerVertical = state?.partnerVertical;
     return (state?.schemas ?? []).filter(
@@ -69,19 +88,17 @@ export default function PartnerRelayDataPage() {
     );
   }, [state]);
 
-  const totalSchemas = visibleSchemas.length;
-  const totalWithItems = visibleSchemas.filter((s) => s.itemCount > 0).length;
+  const grouped = useMemo(() => groupByCategory(visibleSchemas), [visibleSchemas]);
+  const totalItems = visibleSchemas.reduce((sum, s) => sum + s.itemCount, 0);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2 min-w-0">
-          <h1 className="text-3xl font-bold tracking-tight">Your Business Data</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Your Content</h1>
           <p className="text-muted-foreground">
-            Schemas describe the shape of data your bot uses to answer
-            customers. Each schema lives in{' '}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">relaySchemas</code>{' '}
-            — admin manages the structure, you fill it with your items.
+            Add the products, offers, and bookings your customers will see in
+            chat. We&apos;ll handle the rest.
           </p>
         </div>
         {partnerId && user?.uid && (
@@ -89,7 +106,6 @@ export default function PartnerRelayDataPage() {
             partnerId={partnerId}
             userId={user.uid}
             onSeeded={() => {
-              // Refetch the list so item counts show up immediately.
               listPartnerSchemasAction(partnerId).then(setState);
             }}
           />
@@ -107,29 +123,161 @@ export default function PartnerRelayDataPage() {
       )}
 
       {!loading && !state?.success && (
-        <ErrorBanner message={state?.error ?? 'Could not load schemas.'} />
+        <ErrorBanner message={state?.error ?? 'Could not load your content.'} />
       )}
 
-      {!loading && state?.success && totalSchemas === 0 && (
+      {!loading && state?.success && visibleSchemas.length === 0 && (
         <EmptyState />
       )}
 
-      {!loading && state?.success && totalSchemas > 0 && (
+      {!loading && state?.success && visibleSchemas.length > 0 && (
         <>
-          <StatsBanner
-            totalSchemas={totalSchemas}
-            totalWithItems={totalWithItems}
-            totalItems={visibleSchemas.reduce((sum, s) => sum + s.itemCount, 0)}
-          />
+          {totalItems > 0 && (
+            <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm">
+              <strong>{totalItems.toLocaleString()}</strong> live{' '}
+              {totalItems === 1 ? 'item' : 'items'} across your content.
+            </div>
+          )}
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {visibleSchemas.map((s) => (
-              <SchemaCard key={s.slug} schema={s} />
-            ))}
+          <div className="space-y-8">
+            {orderedCategories().map((category) => {
+              const schemas = grouped.get(category) ?? [];
+              if (schemas.length === 0) return null;
+              return (
+                <CategorySection
+                  key={category}
+                  category={category}
+                  schemas={schemas}
+                />
+              );
+            })}
           </div>
         </>
       )}
     </div>
+  );
+}
+
+function groupByCategory(
+  schemas: PartnerSchemaCard[],
+): Map<ContentCategory, PartnerSchemaCard[]> {
+  const out = new Map<ContentCategory, PartnerSchemaCard[]>();
+  for (const s of schemas) {
+    const list = out.get(s.contentCategory) ?? [];
+    list.push(s);
+    out.set(s.contentCategory, list);
+  }
+  return out;
+}
+
+function CategorySection({
+  category,
+  schemas,
+}: {
+  category: ContentCategory;
+  schemas: PartnerSchemaCard[];
+}) {
+  const meta = CONTENT_CATEGORY_META[category];
+  const Icon = ICON_MAP[meta.icon];
+  const totalItems = schemas.reduce((sum, s) => sum + s.itemCount, 0);
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">{meta.label}</h2>
+          {totalItems > 0 && (
+            <span className="text-xs text-muted-foreground">
+              · {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">{meta.description}</p>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {schemas.map((s) => (
+          <SchemaTile key={s.slug} schema={s} categorySingular={meta.singular} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SchemaTile({
+  schema,
+  categorySingular,
+}: {
+  schema: PartnerSchemaCard;
+  categorySingular: string;
+}) {
+  const hasItems = schema.itemCount > 0;
+  const previews = schema.previewItems ?? [];
+  return (
+    <Link
+      href={`/partner/relay/data/${schema.slug}`}
+      className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+    >
+      <div
+        className={[
+          'rounded-lg border bg-card p-4 transition-colors hover:border-foreground/30 flex flex-col h-full',
+          hasItems ? '' : 'border-dashed',
+        ].join(' ')}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold truncate" title={schema.displayName}>
+              {schema.displayName}
+            </div>
+            {schema.description && (
+              <p
+                className="text-xs text-muted-foreground mt-1 line-clamp-2"
+                title={schema.description}
+              >
+                {schema.description}
+              </p>
+            )}
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+        </div>
+
+        <div className="mt-3 text-[11px]">
+          {hasItems ? (
+            <span className="text-emerald-700 font-medium">
+              <strong>{schema.itemCount}</strong>{' '}
+              {schema.itemCount === 1 ? 'item' : 'items'} live
+            </span>
+          ) : (
+            <span className="text-muted-foreground">No {categorySingular}s yet</span>
+          )}
+        </div>
+
+        {previews.length > 0 && (
+          <ul className="mt-3 pt-3 border-t space-y-1">
+            {previews.map((p) => (
+              <li key={p.id} className="text-[11px] truncate" title={p.name}>
+                <span className="text-foreground">{p.name}</span>
+                {p.subtitle && (
+                  <span className="text-muted-foreground"> · {p.subtitle}</span>
+                )}
+              </li>
+            ))}
+            {schema.itemCount > previews.length && (
+              <li className="text-[10px] text-muted-foreground italic">
+                + {schema.itemCount - previews.length} more
+              </li>
+            )}
+          </ul>
+        )}
+
+        {!hasItems && (
+          <div className="mt-auto pt-3 flex items-center gap-1 text-xs text-foreground/70 group-hover:text-foreground">
+            <Plus className="h-3 w-3" />
+            Add {categorySingular}
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }
 
@@ -145,7 +293,7 @@ function IdentityBanner({
   }
   if (!state?.success) return null;
 
-  const { partnerCategoryLabel, partnerCountry, partnerCurrency, partnerVertical } = state;
+  const { partnerCategoryLabel, partnerCountry, partnerCurrency } = state;
   const noIdentity =
     !partnerCategoryLabel && !partnerCountry && !partnerCurrency;
 
@@ -156,7 +304,7 @@ function IdentityBanner({
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
           <span className="text-amber-900">
             Set your <strong>Business Identity</strong> in Settings so we can
-            highlight the schemas relevant to your business.
+            tailor the right content for your business.
           </span>
           <Link
             href="/partner/settings"
@@ -171,10 +319,7 @@ function IdentityBanner({
 
   return (
     <Card className="bg-muted/20">
-      <CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        <span className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
-          Showing for
-        </span>
+      <CardContent className="py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs">
         {partnerCategoryLabel && (
           <Pill icon={<Building2 className="h-3.5 w-3.5" />} label={partnerCategoryLabel} />
         )}
@@ -184,16 +329,11 @@ function IdentityBanner({
         {partnerCurrency && (
           <Pill icon={<DollarSign className="h-3.5 w-3.5" />} label={partnerCurrency} />
         )}
-        {partnerVertical && (
-          <Badge variant="secondary" className="text-[10px]">
-            vertical: {partnerVertical}
-          </Badge>
-        )}
         <Link
           href="/partner/settings"
-          className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
+          className="ml-auto text-[11px] text-muted-foreground hover:text-foreground hover:underline"
         >
-          Edit identity →
+          Edit
         </Link>
       </CardContent>
     </Card>
@@ -202,136 +342,10 @@ function IdentityBanner({
 
 function Pill({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs">
+    <span className="inline-flex items-center gap-1.5">
       <span className="text-muted-foreground">{icon}</span>
       <span className="font-medium">{label}</span>
     </span>
-  );
-}
-
-function SchemaCard({ schema }: { schema: PartnerSchemaCard }) {
-  const hasItems = schema.itemCount > 0;
-  const previews = schema.previewItems ?? [];
-  return (
-    <Link
-      href={`/partner/relay/data/${schema.slug}`}
-      className="group block"
-    >
-      <div
-        className={[
-          'rounded-lg border bg-card p-3 transition-colors hover:border-foreground/30 flex flex-col',
-          hasItems ? '' : 'border-dashed',
-        ].join(' ')}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate" title={schema.name}>
-              {schema.name}
-            </div>
-            <code
-              className="text-[10px] text-muted-foreground block truncate"
-              title={schema.slug}
-            >
-              {schema.slug}
-            </code>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
-        </div>
-        {schema.description && (
-          <p
-            className="text-xs text-muted-foreground mt-2 line-clamp-2"
-            title={schema.description}
-          >
-            {schema.description}
-          </p>
-        )}
-        <div className="flex items-center gap-3 mt-3 text-[11px]">
-          <span className="text-muted-foreground">
-            <strong className="text-foreground">{schema.fieldCount}</strong>{' '}
-            field{schema.fieldCount === 1 ? '' : 's'}
-          </span>
-          <span className="text-muted-foreground">·</span>
-          <span
-            className={
-              hasItems ? 'text-emerald-700 font-medium' : 'text-muted-foreground'
-            }
-          >
-            {hasItems ? (
-              <>
-                <strong>{schema.itemCount}</strong> item
-                {schema.itemCount === 1 ? '' : 's'}
-              </>
-            ) : (
-              <>No items yet</>
-            )}
-          </span>
-        </div>
-        {previews.length > 0 && (
-          <ul className="mt-3 pt-3 border-t space-y-1">
-            {previews.map((p) => (
-              <li key={p.id} className="text-[11px] truncate" title={p.name}>
-                <span className="text-foreground">{p.name}</span>
-                {p.subtitle && (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {p.subtitle}
-                  </span>
-                )}
-              </li>
-            ))}
-            {schema.itemCount > previews.length && (
-              <li className="text-[10px] text-muted-foreground italic">
-                + {schema.itemCount - previews.length} more
-              </li>
-            )}
-          </ul>
-        )}
-      </div>
-    </Link>
-  );
-}
-
-function StatsBanner({
-  totalSchemas,
-  totalWithItems,
-  totalItems,
-}: {
-  totalSchemas: number;
-  totalWithItems: number;
-  totalItems: number;
-}) {
-  const pct =
-    totalSchemas === 0 ? 0 : Math.round((totalWithItems / totalSchemas) * 100);
-  return (
-    <div className="rounded-xl border bg-gradient-to-br from-emerald-50/50 to-background p-4">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <Stat label="Schemas populated" value={`${totalWithItems} / ${totalSchemas}`} />
-        <Stat label="Total items" value={totalItems.toLocaleString()} />
-        <div className="flex-1 min-w-[180px]">
-          <div className="flex items-center justify-between text-[10px] uppercase font-semibold text-muted-foreground mb-1.5">
-            <span>Coverage</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-500 transition-[width] duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-lg font-bold mt-0.5">{value}</div>
-    </div>
   );
 }
 
@@ -339,10 +353,10 @@ function EmptyState() {
   return (
     <Card className="border-dashed">
       <CardContent className="py-12 text-center text-sm text-muted-foreground space-y-3">
-        <Database className="h-8 w-8 mx-auto text-muted-foreground/60" />
+        <Package className="h-8 w-8 mx-auto text-muted-foreground/60" />
         <p>
-          No schemas available yet. Schemas are generated centrally by admin —
-          contact support if this looks wrong for your account.
+          Nothing to manage yet. Once your business identity is set up, we&apos;ll
+          show you the content sections that fit your business.
         </p>
       </CardContent>
     </Card>

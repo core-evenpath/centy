@@ -23,12 +23,29 @@ import {
 } from '@/lib/relay/relay-verticals';
 import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
 import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import {
+  inferContentCategory,
+  humanizeFamilyFromSlug,
+  type ContentCategory,
+} from '@/lib/relay/content-categories';
 
 export interface PartnerSchemaCard {
   slug: string;
   name: string;
+  /**
+   * Display name with the vertical prefix stripped + humanized — what
+   * the partner-facing UI shows. Falls back to slug-derived family
+   * when the schema doc has no name.
+   */
+  displayName: string;
   description?: string;
   vertical: RelayVertical | null;
+  /**
+   * Partner-facing taxonomy bucket (Phase 1A). Inferred from the slug
+   * unless the schema doc carries an explicit `contentCategory` field
+   * (admin override — Phase 1B).
+   */
+  contentCategory: ContentCategory;
   fieldCount: number;
   /** Partner's items in the matching businessModule, 0 if none. */
   itemCount: number;
@@ -99,6 +116,51 @@ function derivePartnerVertical(identity: any): RelayVertical | null {
   }
 
   return null;
+}
+
+// Vertical prefixes that show up at the start of admin-set schema
+// names. Stripping these makes "Food Beverage Menu" read as "Menu" on
+// the partner-facing page where the vertical is already implied by the
+// surrounding identity banner. Order matters — match the longest first.
+const VERTICAL_NAME_PREFIXES: ReadonlyArray<string> = [
+  'Food Beverage',
+  'Food Supply',
+  'Personal Wellness',
+  'Home Property',
+  'Travel Transport',
+  'Public Nonprofit',
+  'Financial Services',
+  'Events Entertainment',
+  'Hospitality',
+  'Healthcare',
+  'Automotive',
+  'Education',
+  'Business',
+  'Ecommerce',
+  'Shared',
+];
+
+function friendlyName(rawName: string, slug: string): string {
+  const trimmed = (rawName ?? '').trim();
+  if (!trimmed) return humanizeFamilyFromSlug(slug);
+  for (const prefix of VERTICAL_NAME_PREFIXES) {
+    if (trimmed.toLowerCase().startsWith(prefix.toLowerCase())) {
+      const stripped = trimmed.slice(prefix.length).trim();
+      if (stripped) return stripped;
+    }
+  }
+  return trimmed;
+}
+
+function isValidContentCategory(value: string): value is ContentCategory {
+  return (
+    value === 'products' ||
+    value === 'bookings' ||
+    value === 'offers' ||
+    value === 'about' ||
+    value === 'operations' ||
+    value === 'other'
+  );
 }
 
 function deriveCategoryLabel(identity: any): string | undefined {
@@ -217,12 +279,28 @@ export async function listPartnerSchemasAction(
       const fieldsRaw =
         data?.schema?.fields ?? data?.fields ?? [];
       const fieldCount = Array.isArray(fieldsRaw) ? fieldsRaw.length : 0;
+      const rawName =
+        typeof data?.name === 'string' && data.name ? data.name : slug;
+      // Display name strips the vertical prefix admin-side names tend to
+      // carry (e.g. "Food Beverage Menu" → "Menu"). When the schema doc
+      // has no friendly name, the family token from the slug is used.
+      const displayName = friendlyName(rawName, slug);
+      // Admin override wins over inference. The override field arrives
+      // in Phase 1B; until then this just falls through to the slug
+      // inference for every schema.
+      const contentCategory: ContentCategory =
+        typeof data?.contentCategory === 'string' &&
+        isValidContentCategory(data.contentCategory)
+          ? data.contentCategory
+          : inferContentCategory(slug);
       return {
         slug,
-        name: typeof data?.name === 'string' && data.name ? data.name : slug,
+        name: rawName,
+        displayName,
         description:
           typeof data?.description === 'string' ? data.description : undefined,
         vertical: getVerticalForSlug(slug),
+        contentCategory,
         fieldCount,
         itemCount: itemCountBySlug.get(slug) ?? 0,
         hasModule: enabledSlugs.has(slug),
@@ -230,12 +308,13 @@ export async function listPartnerSchemasAction(
       };
     });
 
-    // Sort: vertical first (alphabetical, with null/orphan last), then name.
+    // Sort: contentCategory priority (so the page can group without
+    // resorting), then displayName.
     schemas.sort((a, b) => {
-      const av = a.vertical ?? '~';
-      const bv = b.vertical ?? '~';
-      if (av !== bv) return av.localeCompare(bv);
-      return a.name.localeCompare(b.name);
+      if (a.contentCategory !== b.contentCategory) {
+        return a.contentCategory.localeCompare(b.contentCategory);
+      }
+      return a.displayName.localeCompare(b.displayName);
     });
 
     return {
