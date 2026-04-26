@@ -196,6 +196,16 @@ export default function PartnerRelayDataPage() {
   );
 }
 
+// Schema docs created by the bootstrap generator carry a generic
+// description like "Auto-generated from 3 Relay blocks. Field list is
+// the union of block.reads[] across consumers." It's identical across
+// every card, so suppress it on the partner page — partners only need
+// to see meaningful per-schema copy.
+function isBoilerplateSchemaDescription(value: string | undefined): boolean {
+  if (!value) return false;
+  return /^Auto-generated from \d+ Relay block/.test(value);
+}
+
 function groupByCategory(
   schemas: PartnerSchemaCard[],
 ): Map<ContentCategory, PartnerSchemaCard[]> {
@@ -292,7 +302,7 @@ function SchemaTile({
             <div className="text-sm font-semibold truncate" title={schema.displayName}>
               {schema.displayName}
             </div>
-            {schema.description && (
+            {schema.description && !isBoilerplateSchemaDescription(schema.description) && (
               <p
                 className="text-xs text-muted-foreground mt-1 line-clamp-2"
                 title={schema.description}

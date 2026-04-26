@@ -386,6 +386,17 @@ export interface SeedAllVerticalSchemasResult {
 export async function seedAllVerticalSchemasAction(
   partnerId: string,
   userId: string,
+  options?: {
+    /**
+     * Refresh-mode flag. When true, before seeding each schema the
+     * underlying action deletes existing items whose description
+     * matches the auto-generator boilerplate, then seeds fresh — so
+     * the curated JSON fixtures replace stale generic items written
+     * by earlier deterministic runs. Partner-edited items are
+     * preserved (different description heuristic).
+     */
+    replaceAutoSamples?: boolean;
+  },
 ): Promise<SeedAllVerticalSchemasResult> {
   try {
     if (!adminDb) return { success: false, error: 'Database not available' };
@@ -465,6 +476,7 @@ export async function seedAllVerticalSchemasAction(
         try {
           const res = await seedSampleItemsAction(partnerId, slug, userId, {
             skipIfItemsExist: true,
+            replaceAutoSamples: options?.replaceAutoSamples,
           });
           if (!res.success) {
             return {

@@ -34,11 +34,13 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<SeedAllVerticalSchemasResult | null>(null);
 
-  const handleSeed = async () => {
+  const handleSeed = async (replaceAutoSamples = false) => {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await seedAllVerticalSchemasAction(partnerId, userId);
+      const res = await seedAllVerticalSchemasAction(partnerId, userId, {
+        replaceAutoSamples,
+      });
       setLast(res);
       if (!res.success) {
         toast.error(res.error || 'Could not seed sample data');
@@ -49,7 +51,9 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
       const had = res.schemasAlreadyHadItems ?? 0;
       if (created > 0) {
         toast.success(
-          `Seeded ${created} item${created === 1 ? '' : 's'} across ${seeded} schema${seeded === 1 ? '' : 's'}.${had > 0 ? ` ${had} already had data.` : ''}`,
+          replaceAutoSamples
+            ? `Refreshed ${created} curated item${created === 1 ? '' : 's'} across ${seeded} schema${seeded === 1 ? '' : 's'}.${had > 0 ? ` ${had} kept your edits.` : ''}`
+            : `Seeded ${created} item${created === 1 ? '' : 's'} across ${seeded} schema${seeded === 1 ? '' : 's'}.${had > 0 ? ` ${had} already had data.` : ''}`,
         );
       } else if (had > 0) {
         toast.message(`All ${had} vertical schemas already have data.`);
@@ -82,18 +86,19 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
           variant="outline"
           size="sm"
           disabled={busy}
-          onClick={handleSeed}
+          onClick={() => handleSeed(true)}
           className="text-xs h-8"
+          title="Replace auto-generated placeholder items with the latest curated samples. Your edits are preserved."
         >
           {busy ? (
             <>
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              Re-seeding…
+              Refreshing…
             </>
           ) : (
             <>
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Re-seed
+              Refresh samples
             </>
           )}
         </Button>
@@ -113,7 +118,7 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
           variant="outline"
           size="sm"
           disabled={busy}
-          onClick={handleSeed}
+          onClick={() => handleSeed(false)}
           className="text-xs h-8"
         >
           {busy ? (
@@ -132,8 +137,8 @@ export function TestChatSeedSampleCTA({ partnerId, userId, onSeeded }: Props) {
       variant="outline"
       size="sm"
       disabled={busy}
-      onClick={handleSeed}
-      title="Populate every schema in your vertical with sample items covering every schema field. Idempotent — your existing data is left alone."
+      onClick={() => handleSeed(false)}
+      title="Populate every schema in your vertical with sample items. Idempotent on first run — schemas with existing data are left alone."
     >
       {busy ? (
         <>
