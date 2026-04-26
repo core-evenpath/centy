@@ -111,18 +111,27 @@ export async function POST(request: NextRequest) {
 
     const seedMessages = (entryStage.blockTypes ?? [])
       .filter((blockId) => !disabledBlockIds.has(blockId))
-      .map((blockId, idx) => ({
-        id: `seed_${idx}_${blockId}`,
-        role: 'assistant' as const,
-        content: '',
-        blockId,
-        blockData: buildBlockData({
+      .map((blockId, idx) => {
+        const blockData = buildBlockData({
           blockId,
           partnerData: partnerData as Record<string, unknown> | null,
           modules,
-        }),
-        stageId: entryStage.id,
-      }));
+        });
+        // Phase 3C: when buildBlockData returns undefined the partner
+        // has no items / no usable data for this block, and the
+        // renderer falls back to its internal sampleData. Tag the
+        // seed message so test-chat can show a "Sample data" badge —
+        // partner sees it's placeholder, not their own content.
+        return {
+          id: `seed_${idx}_${blockId}`,
+          role: 'assistant' as const,
+          content: '',
+          blockId,
+          blockData,
+          isSample: blockData === undefined,
+          stageId: entryStage.id,
+        };
+      });
 
     return NextResponse.json(
       {

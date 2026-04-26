@@ -101,6 +101,11 @@ interface ChatMessage {
     blockData?: Record<string, unknown>;
     suggestions?: string[];
     stageId?: string;
+    /** Phase 3C: true when the block is rendering its internal sample
+     * data because the partner hasn't provided real items yet. The
+     * renderer surfaces a "Sample data" badge so it doesn't look like
+     * the partner's content. Test-chat-only — production never sets it. */
+    isSample?: boolean;
 }
 
 export default function PartnerRelayTestChatPage() {
@@ -500,12 +505,14 @@ export default function PartnerRelayTestChatPage() {
                             blockId?: string;
                             blockData?: Record<string, unknown>;
                             stageId?: string;
+                            isSample?: boolean;
                         }) => ({
                             role: 'assistant' as const,
                             content: '',
                             blockId: sm.blockId,
                             blockData: sm.blockData,
                             stageId: sm.stageId,
+                            isSample: sm.isSample,
                         }),
                     );
                     if (seeds.length > 0) setChatMessages(seeds);
