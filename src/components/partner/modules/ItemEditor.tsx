@@ -61,6 +61,18 @@ interface UploadingImage {
     preview: string;
 }
 
+// Schema field names are stored as snake_case identifiers
+// (`spice_level`, `cooking_time`). Render them as humanized title-case
+// labels — partners shouldn't see internal tokens.
+function humanizeFieldName(name: string | undefined): string {
+    if (!name) return '';
+    return name
+        .split(/[_-]/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
 export function ItemEditor({
     initialItem,
     module,
@@ -532,7 +544,6 @@ export function ItemEditor({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                    <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="images">Images</TabsTrigger>
                     <TabsTrigger value="settings">Settings</TabsTrigger>
                 </TabsList>
@@ -551,7 +562,38 @@ export function ItemEditor({
                                 <Textarea id="description" {...register('description')} rows={3} />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Schema-defined fields — promoted from the old "Details" tab
+                                so partners see what's specific to THIS content type
+                                immediately, not buried behind a second tab click. The
+                                set comes from `relaySchemas/{slug}.schema.fields[]` plus
+                                any partner custom fields. */}
+                            {allFields.length > 0 && (
+                                <div className="space-y-3 pt-2 border-t">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                        {schema.fields.length > 0
+                                            ? 'Details'
+                                            : 'Custom fields'}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {allFields.map(field => (
+                                            <div key={field.id} className="space-y-1.5">
+                                                <Label className="flex items-center gap-2 text-sm">
+                                                    {humanizeFieldName(field.name)}
+                                                    {field.isRequired && <span className="text-red-500">*</span>}
+                                                </Label>
+                                                {renderFieldInput(field)}
+                                                {field.description && (
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        {field.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t">
                                 <div className="grid gap-2">
                                     <Label htmlFor="category">Category</Label>
                                     <Select
@@ -600,29 +642,6 @@ export function ItemEditor({
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="details" className="space-y-4">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {allFields.map(field => (
-                                    <div key={field.id} className="space-y-2">
-                                        <Label className="flex items-center gap-2">
-                                            {field.name}
-                                            {field.isRequired && <span className="text-red-500">*</span>}
-                                        </Label>
-                                        {renderFieldInput(field)}
-                                        {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
-                                    </div>
-                                ))}
-                                {allFields.length === 0 && (
-                                    <div className="col-span-full text-center py-8 text-muted-foreground">
-                                        No custom fields defined for this module.
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
 
                 <TabsContent value="images" className="space-y-4">
                     <Card>
