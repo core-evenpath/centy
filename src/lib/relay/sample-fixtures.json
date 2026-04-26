@@ -448,5 +448,290 @@
         "tags": ["allergy", "safety"]
       }
     }
+  ],
+
+  "food_beverage_operations": [
+    {
+      "name": "Kitchen prep schedule",
+      "description": "Mise-en-place starts at 14:00 daily. Pantry, sauce, grill, and pastry stations stagger through opening.",
+      "category": "Kitchen",
+      "isActive": true,
+      "fields": {
+        "shift_start": "14:00",
+        "shift_end": "23:30",
+        "stations": ["pantry", "sauce", "grill", "pastry"],
+        "tags": ["kitchen", "prep"]
+      }
+    },
+    {
+      "name": "Front-of-house briefing",
+      "description": "Pre-shift huddle at 16:30 — covers VIP reservations, 86’d items, allergens, and the night’s wine focus.",
+      "category": "Service",
+      "isActive": true,
+      "fields": {
+        "briefing_time": "16:30",
+        "duration_minutes": 15,
+        "tags": ["service", "briefing"]
+      }
+    },
+    {
+      "name": "Closing checklist",
+      "description": "Last seating at 22:00. Kitchen breakdown, deep clean, walk-in temp log, and the next day’s order list filed before lockup.",
+      "category": "Closing",
+      "isActive": true,
+      "fields": {
+        "last_seating": "22:00",
+        "lockup_target": "23:30",
+        "tags": ["closing", "ops"]
+      }
+    }
+  ],
+
+  "food_beverage_ordering": [
+    {
+      "name": "In-house dining order",
+      "description": "Standard table order routed to the kitchen via POS. Course timing is flagged by the server.",
+      "category": "Channel",
+      "isActive": true,
+      "fields": {
+        "channel": "Dine-in",
+        "average_ticket_minutes": 45,
+        "tags": ["dine-in", "pos"]
+      }
+    },
+    {
+      "name": "Online pickup order",
+      "description": "Web/app order with a 25-minute prep window. Customer collects at the bar host stand.",
+      "category": "Channel",
+      "isActive": true,
+      "fields": {
+        "channel": "Pickup",
+        "average_ticket_minutes": 25,
+        "pickup_location": "Bar host stand",
+        "tags": ["pickup", "online"]
+      }
+    },
+    {
+      "name": "Delivery partner order",
+      "description": "Routed via DoorDash / Uber Eats. Marked priority during peak Friday/Saturday windows so dine-in stays on time.",
+      "category": "Channel",
+      "isActive": true,
+      "fields": {
+        "channel": "Delivery",
+        "partners": ["DoorDash", "Uber Eats"],
+        "average_ticket_minutes": 35,
+        "tags": ["delivery", "third-party"]
+      }
+    }
+  ],
+
+  "shared_marketing": [
+    {
+      "name": "Brand Story",
+      "description": "Our headline pitch — what makes us different in three lines. Delivered as the opening message of every chat.",
+      "category": "Brand",
+      "isActive": true,
+      "fields": {
+        "headline": "Hand-crafted Italian, served the way Marco grew up eating it.",
+        "tagline": "Modern Italian · San Francisco · since 2018",
+        "cta_label": "See the menu",
+        "tags": ["brand", "intro"]
+      }
+    },
+    {
+      "name": "Featured Promotion",
+      "description": "The single offer surfaced when a customer asks about deals. Refreshed weekly.",
+      "category": "Promotion",
+      "isActive": true,
+      "fields": {
+        "headline": "Half-price cocktails 5–7pm weekdays",
+        "discount_code": "HAPPY50",
+        "expires_at": "2027-12-31",
+        "cta_label": "Book a seat",
+        "tags": ["promo", "weekday"]
+      }
+    },
+    {
+      "name": "Loyalty Program",
+      "description": "Repeat-customer perks announced in chat after the second visit. One free dessert per ten meals.",
+      "category": "Loyalty",
+      "isActive": true,
+      "fields": {
+        "headline": "Visit ten times, dessert is on us",
+        "reward_threshold": 10,
+        "reward_label": "Free dessert",
+        "cta_label": "Track my visits",
+        "tags": ["loyalty", "retention"]
+      }
+    }
+  ],
+
+  "shared_checkout": [
+    {
+      "name": "Standard Checkout",
+      "description": "Default cart-to-payment flow with split-bill and tip-percentage options.",
+      "category": "Flow",
+      "isActive": true,
+      "fields": {
+        "split_bill_supported": true,
+        "tip_options_percent": [15, 18, 20, 25],
+        "payment_methods": ["card", "apple_pay", "google_pay"],
+        "tags": ["checkout", "default"]
+      }
+    },
+    {
+      "name": "Pay at Table",
+      "description": "Server delivers a QR code at end of meal; customer pays without flagging anyone down.",
+      "category": "Flow",
+      "isActive": true,
+      "fields": {
+        "qr_required": true,
+        "tip_options_percent": [15, 18, 20, 25],
+        "payment_methods": ["card", "apple_pay", "google_pay"],
+        "tags": ["qr", "table"]
+      }
+    },
+    {
+      "name": "Deposit Hold",
+      "description": "Used for private dining and large parties. Holds a configurable amount; balance settled on the night.",
+      "category": "Flow",
+      "isActive": true,
+      "fields": {
+        "deposit_amount": 200,
+        "auto_release_hours": 24,
+        "payment_methods": ["card"],
+        "tags": ["deposit", "private"]
+      }
+    }
+  ],
+
+  "shared_confirmation": [
+    {
+      "name": "Booking Confirmation",
+      "description": "Emailed and shown in chat after a reservation is locked. Includes the calendar add-to-cal link and address map.",
+      "category": "Booking",
+      "isActive": true,
+      "fields": {
+        "headline": "You’re booked!",
+        "include_map": true,
+        "include_add_to_calendar": true,
+        "cta_label": "View reservation",
+        "tags": ["booking", "confirmation"]
+      }
+    },
+    {
+      "name": "Order Confirmation",
+      "description": "Sent immediately after a pickup or delivery order. Shows ticket number, ETA, and what to do if anything’s missing.",
+      "category": "Order",
+      "isActive": true,
+      "fields": {
+        "headline": "Order received — kitchen is on it.",
+        "include_ticket_number": true,
+        "include_eta_minutes": true,
+        "cta_label": "Track order",
+        "tags": ["order", "confirmation"]
+      }
+    },
+    {
+      "name": "Cancellation Confirmation",
+      "description": "Confirms a reservation or order has been cancelled, with the refund window if applicable.",
+      "category": "Cancellation",
+      "isActive": true,
+      "fields": {
+        "headline": "Cancelled — sorry to miss you.",
+        "include_refund_window": true,
+        "cta_label": "Book again",
+        "tags": ["cancellation"]
+      }
+    }
+  ],
+
+  "shared_conversation": [
+    {
+      "name": "Welcome message",
+      "description": "What a customer sees the moment they open chat. Sets the tone, offers the first three things they can ask.",
+      "category": "Greeting",
+      "isActive": true,
+      "fields": {
+        "welcome_message": "Welcome! How can we make tonight great?",
+        "brand_emoji": "🍷",
+        "cta_label": "Show me the menu",
+        "prompt_text": "Try: see the menu · book a table · today's specials",
+        "tags": ["greeting", "welcome"]
+      }
+    },
+    {
+      "name": "Smart nudge",
+      "description": "Non-blocking suggestion shown after a reply — e.g. \"Pair this with a glass of Barolo?\". Tap-able, dismissible.",
+      "category": "Nudge",
+      "isActive": true,
+      "fields": {
+        "headline": "Pair this with a glass of Barolo?",
+        "body": "Marco recommends it with the truffle risotto.",
+        "icon": "🍷",
+        "tags": ["nudge", "upsell"]
+      }
+    },
+    {
+      "name": "Quick replies",
+      "description": "Tappable suggestion chips shown alongside the bot’s message. Drives the conversation forward without typing.",
+      "category": "Suggestions",
+      "isActive": true,
+      "fields": {
+        "prompt_text": "What would you like to do?",
+        "suggestions": [
+          "See the menu",
+          "Book a table",
+          "Today's specials",
+          "Where are you?"
+        ],
+        "tags": ["suggestions", "guided"]
+      }
+    }
+  ],
+
+  "shared_navigation": [
+    {
+      "name": "Quick actions",
+      "description": "The four primary verbs always available in chat: Menu, Reserve, Order, Find us. Tap any one to jump.",
+      "category": "Actions",
+      "isActive": true,
+      "fields": {
+        "actions": [
+          { "label": "Menu", "intent": "menu" },
+          { "label": "Reserve", "intent": "booking" },
+          { "label": "Order", "intent": "ordering" },
+          { "label": "Find us", "intent": "location" }
+        ],
+        "tags": ["navigation", "primary"]
+      }
+    },
+    {
+      "name": "Contact card",
+      "description": "Phone, email, address, and hours — surfaced when the customer asks how to reach you outside chat.",
+      "category": "Contact",
+      "isActive": true,
+      "fields": {
+        "phone": "+1 (415) 555-0188",
+        "email": "hello@example.com",
+        "address": "123 Main Street, San Francisco, CA 94105",
+        "hours_summary": "Mon–Sun · 11am–11pm",
+        "tags": ["contact"]
+      }
+    },
+    {
+      "name": "Footer links",
+      "description": "Secondary links shown at the end of long answers — privacy, accessibility, full hours.",
+      "category": "Links",
+      "isActive": true,
+      "fields": {
+        "links": [
+          { "label": "Privacy", "url": "/privacy" },
+          { "label": "Accessibility", "url": "/accessibility" },
+          { "label": "Full hours", "url": "/hours" }
+        ],
+        "tags": ["footer", "secondary"]
+      }
+    }
   ]
 }

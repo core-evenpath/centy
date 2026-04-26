@@ -129,6 +129,14 @@ function derivePartnerVertical(identity: any): RelayVertical | null {
 // names. Stripping these makes "Food Beverage Menu" read as "Menu" on
 // the partner-facing page where the vertical is already implied by the
 // surrounding identity banner. Order matters — match the longest first.
+//
+// Note: 'Shared' is intentionally NOT in this list. Cross-vertical
+// schemas (`shared_*`) often share a family token with a vertical
+// schema in the partner's own vertical (e.g. `shared_marketing` and
+// `food_beverage_marketing` both end in `marketing`). Stripping the
+// "Shared" prefix would render both tiles identically labelled
+// "Marketing" — confusing. Keeping the prefix makes them distinct
+// ("Shared Marketing" vs "Marketing").
 const VERTICAL_NAME_PREFIXES: ReadonlyArray<string> = [
   'Food Beverage',
   'Food Supply',
@@ -144,7 +152,6 @@ const VERTICAL_NAME_PREFIXES: ReadonlyArray<string> = [
   'Education',
   'Business',
   'Ecommerce',
-  'Shared',
 ];
 
 function friendlyName(rawName: string, slug: string): string {
