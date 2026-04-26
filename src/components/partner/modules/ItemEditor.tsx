@@ -23,6 +23,7 @@ import { SUPPORTED_CURRENCIES } from '@/lib/modules/constants';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
+import BlockPreviewPanel from '@/components/partner/relay/BlockPreviewPanel';
 
 interface ItemEditorProps {
     initialItem?: Partial<ModuleItem>;
@@ -36,6 +37,15 @@ interface ItemEditorProps {
      * a blank input.
      */
     identity?: PartnerIdentity | null;
+    /**
+     * Phase 3B: active blocks consuming this content type. When set,
+     * a side panel renders one of those blocks live against the
+     * partner's in-progress form data so they can preview the chat
+     * appearance without leaving the editor.
+     */
+    previewBlocks?: Array<{ id: string; label: string; description: string }>;
+    /** Partner-disabled block ids — drives the "Hidden" hint in preview. */
+    disabledBlockIds?: Set<string>;
     onSave: (item: Partial<ModuleItem>) => Promise<void>;
     onCancel: () => void;
 }
@@ -51,7 +61,16 @@ interface UploadingImage {
     preview: string;
 }
 
-export function ItemEditor({ initialItem, module, schema, identity, onSave, onCancel }: ItemEditorProps) {
+export function ItemEditor({
+    initialItem,
+    module,
+    schema,
+    identity,
+    previewBlocks,
+    disabledBlockIds,
+    onSave,
+    onCancel,
+}: ItemEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('basic');
     const [uploadedImages, setUploadedImages] = useState<string[]>(initialItem?.images || []);
@@ -488,8 +507,17 @@ export function ItemEditor({ initialItem, module, schema, identity, onSave, onCa
         }
     };
 
+    const showPreview = (previewBlocks?.length ?? 0) > 0;
+
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <div
+            className={
+                showPreview
+                    ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px] gap-6'
+                    : 'block'
+            }
+        >
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 min-w-0">
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">{initialItem?.id ? 'Edit Item' : 'New Item'}</h2>
                 <div className="flex gap-2">
@@ -723,5 +751,15 @@ export function ItemEditor({ initialItem, module, schema, identity, onSave, onCa
 
             </Tabs>
         </form>
+        {showPreview && previewBlocks && (
+            <aside className="lg:sticky lg:top-4 lg:max-h-[80vh]">
+                <BlockPreviewPanel
+                    blocks={previewBlocks}
+                    disabledBlockIds={disabledBlockIds}
+                    formValues={watchedFields}
+                />
+            </aside>
+        )}
+        </div>
     );
 }

@@ -16,7 +16,10 @@ import {
     getRelaySchemaTemplateCSVAction,
 } from '@/actions/modules-actions';
 import { getPartnerIdentityAction } from '@/actions/partner-identity';
+import { loadPartnerDisabledBlocksAction } from '@/actions/partner-block-overrides';
 import type { PartnerIdentity } from '@/lib/partner/identity-prefill';
+import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import { getBlocksForModule } from '@/lib/relay/block-module-graph';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles, FileDown } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
@@ -80,18 +83,39 @@ export default function ModuleManagePage({ params }: PageProps) {
     // Phase 3A: business identity slice for prefill in ItemEditor.
     // Loaded once per page mount; passed straight through to the editor.
     const [identity, setIdentity] = useState<PartnerIdentity | null>(null);
+    // Phase 3B: per-partner block-visibility overrides drive the
+    // "Hidden in chat" hint inside the inline preview panel.
+    const [disabledBlockIds, setDisabledBlockIds] = useState<Set<string>>(
+        () => new Set<string>(),
+    );
 
     useEffect(() => {
         if (!partnerId) return;
         let cancelled = false;
-        getPartnerIdentityAction(partnerId).then((res) => {
+        Promise.all([
+            getPartnerIdentityAction(partnerId),
+            loadPartnerDisabledBlocksAction(partnerId),
+        ]).then(([identityRes, overridesRes]) => {
             if (cancelled) return;
-            if (res.success) setIdentity(res.identity);
+            if (identityRes.success) setIdentity(identityRes.identity);
+            if (overridesRes.success) {
+                setDisabledBlockIds(new Set(overridesRes.disabled));
+            }
         });
         return () => {
             cancelled = true;
         };
     }, [partnerId]);
+
+    // Phase 3B: active blocks consuming this schema. Filtered to
+    // status: 'active' so deprecated/sunset blocks don't appear in
+    // the editor's preview picker. Memoizable but the slice is small;
+    // recomputed inline.
+    const previewBlocks = ALL_BLOCKS_DATA
+        ? getBlocksForModule(slug, ALL_BLOCKS_DATA)
+              .filter((b) => b.status === 'active')
+              .map((b) => ({ id: b.id, label: b.label, description: b.desc ?? '' }))
+        : [];
 
     // PR fix-21: per-slug "Load sample items" button removed in favour of
     // the single "Generate sample data" CTA on /partner/relay/data which
@@ -406,7 +430,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                                     Add {itemLabel}
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>
                                         {editingItem ? 'Edit' : 'Add'} {itemLabel}
@@ -417,6 +441,8 @@ export default function ModuleManagePage({ params }: PageProps) {
                                     module={partnerModule}
                                     schema={schema}
                                     identity={identity}
+                                    previewBlocks={previewBlocks}
+                                    disabledBlockIds={disabledBlockIds}
                                     onSave={handleSave}
                                     onCancel={() => setIsEditorOpen(false)}
                                 />
