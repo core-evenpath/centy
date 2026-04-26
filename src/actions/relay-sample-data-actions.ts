@@ -27,6 +27,10 @@ import {
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleItem } from '@/lib/modules/types';
 import { getDataGuideForFunction } from '@/lib/relay/block-data-guide';
+import {
+    getFixtureItemsForSlug,
+    type FixtureItem,
+} from '@/lib/relay/sample-fixtures';
 
 type SampleItem = Partial<ModuleItem>;
 
@@ -61,6 +65,16 @@ async function deriveSampleItemsFromSchema(
     slug: string,
 ): Promise<SampleItem[] | null> {
     try {
+        // Phase 4: curated fixtures first. When `sample-fixtures.json` has
+        // entries for this slug we bypass the deterministic generator
+        // entirely — partners see realistic data ("Margherita Pizza")
+        // instead of generic placeholders ("Sample category 1"). Slugs
+        // without fixtures fall through to the existing generator below.
+        const fixtures = getFixtureItemsForSlug(slug);
+        if (fixtures && fixtures.length > 0) {
+            return fixtures.map((f) => fixtureToSampleItem(f));
+        }
+
         const doc = await adminDb.collection('relaySchemas').doc(slug).get();
         if (!doc.exists) {
             // PR fix-22: seedAllVerticalSchemasAction now iterates the
@@ -211,6 +225,30 @@ async function deriveSampleItemsFromSchema(
 // PR fix-21: removed SAMPLE_ITEMS_BY_SLUG curated demos. Every slug
 // now goes through deriveSampleItemsFromSchema for consistent coverage
 // across all 153 vertical-prefixed schemas (one path, no per-slug code).
+
+// Phase 4: shape a curated FixtureItem into the SampleItem partial that
+// bulkCreateModuleItemsAction expects. The two shapes differ only in
+// optional/typed wrapping; we keep the canonical top-level slots
+// (name/description/category/price/currency/isActive/images) and pass
+// `fields` through verbatim — Firestore tolerates the wider shape and
+// block renderers read by bare field name (post-Phase-0 alignment).
+function fixtureToSampleItem(f: FixtureItem): SampleItem {
+    const item: SampleItem = {
+        name: f.name,
+        description: f.description,
+        isActive: f.isActive ?? true,
+    };
+    if (typeof f.category === 'string') item.category = f.category;
+    if (typeof f.price === 'number') item.price = f.price;
+    if (typeof f.currency === 'string') item.currency = f.currency;
+    if (Array.isArray(f.images) && f.images.length > 0) {
+        item.images = f.images.filter((s): s is string => typeof s === 'string');
+    }
+    if (f.fields && typeof f.fields === 'object') {
+        item.fields = { ...f.fields } as Record<string, any>;
+    }
+    return item;
+}
 
 
 export async function seedSampleItemsAction(
