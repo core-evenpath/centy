@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   Plus,
   Save,
@@ -46,11 +48,33 @@ const TYPE_OPTIONS: ReadonlyArray<{ value: ModuleFieldDefinition['type']; label:
   { value: 'currency', label: 'Currency' },
   { value: 'duration', label: 'Duration' },
   { value: 'url', label: 'URL' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'date', label: 'Date' },
+  { value: 'time', label: 'Time' },
+  { value: 'image', label: 'Image' },
   { value: 'select', label: 'Select' },
   { value: 'multi_select', label: 'Multi-select' },
   { value: 'tags', label: 'Tags' },
   { value: 'toggle', label: 'Toggle' },
 ];
+
+// Numeric-ish types use min/max; string-ish types use length+pattern.
+// Toggle/date/time/image/select/etc. don't expose validation hints
+// here — keeps the form scoped to what the partner-side ItemEditor
+// actually applies.
+const NUMERIC_TYPES = new Set<ModuleFieldDefinition['type']>([
+  'number',
+  'currency',
+  'duration',
+]);
+const STRING_TYPES = new Set<ModuleFieldDefinition['type']>([
+  'text',
+  'textarea',
+  'url',
+  'email',
+  'phone',
+]);
 
 function fieldToDraft(f: ModuleFieldDefinition): FieldDraft {
   return {
@@ -61,6 +85,11 @@ function fieldToDraft(f: ModuleFieldDefinition): FieldDraft {
     showInList: !!f.showInList,
     showInCard: !!f.showInCard,
     options: f.options ? [...f.options] : undefined,
+    description: f.description ?? '',
+    placeholder: f.placeholder ?? '',
+    defaultValue: f.defaultValue,
+    validation: f.validation ? { ...f.validation } : undefined,
+    conditionalOn: f.conditionalOn ? { ...f.conditionalOn } : undefined,
   };
 }
 
@@ -76,9 +105,23 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
     (schema.fields ?? []).map(fieldToDraft),
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const updateRow = (idx: number, patch: Partial<FieldDraft>) => {
     setDrafts((prev) => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  };
+
+  const updateValidation = (
+    idx: number,
+    patch: Partial<NonNullable<FieldDraft['validation']>>,
+  ) => {
+    setDrafts((prev) =>
+      prev.map((row, i) =>
+        i === idx
+          ? { ...row, validation: { ...(row.validation ?? {}), ...patch } }
+          : row,
+      ),
+    );
   };
 
   const moveRow = (idx: number, direction: 'up' | 'down') => {
@@ -93,6 +136,25 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
 
   const deleteRow = (idx: number) => {
     setDrafts((prev) => prev.filter((_, i) => i !== idx));
+    setExpandedRows((prev) => {
+      const next = new Set<number>();
+      // After splice, indices shift. Drop expanded entries past `idx`
+      // and decrement those past it. Simpler to rebuild empty.
+      for (const i of prev) {
+        if (i < idx) next.add(i);
+        else if (i > idx) next.add(i - 1);
+      }
+      return next;
+    });
+  };
+
+  const toggleExpanded = (idx: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
   };
 
   const addRow = () => {
@@ -105,6 +167,8 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
         isSearchable: false,
         showInList: false,
         showInCard: false,
+        description: '',
+        placeholder: '',
       },
     ]);
   };
@@ -155,6 +219,9 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
         ) : (
           drafts.map((row, idx) => {
             const supportsOptions = row.type === 'select' || row.type === 'multi_select';
+            const isNumeric = NUMERIC_TYPES.has(row.type);
+            const isString = STRING_TYPES.has(row.type);
+            const isExpanded = expandedRows.has(idx);
             return (
               <div
                 key={idx}
@@ -227,6 +294,35 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Description (admin/partner help)
+                    </label>
+                    <Input
+                      value={row.description ?? ''}
+                      onChange={(e) =>
+                        updateRow(idx, { description: e.target.value })
+                      }
+                      placeholder="e.g. Short product summary used in cards"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Placeholder (partner input)
+                    </label>
+                    <Input
+                      value={row.placeholder ?? ''}
+                      onChange={(e) =>
+                        updateRow(idx, { placeholder: e.target.value })
+                      }
+                      placeholder="e.g. Enter a short tagline"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+
                 {supportsOptions && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -267,6 +363,144 @@ export default function SchemaEditor({ slug, schema, onCancel, onSaved }: Props)
                     onChange={(v) => updateRow(idx, { showInCard: v })}
                   />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(idx)}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                  Advanced (default value, validation)
+                </button>
+
+                {isExpanded && (
+                  <div className="rounded border border-dashed bg-background/40 p-2 space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Default value
+                      </label>
+                      <Input
+                        value={
+                          row.defaultValue === undefined || row.defaultValue === null
+                            ? ''
+                            : String(row.defaultValue)
+                        }
+                        onChange={(e) =>
+                          updateRow(idx, {
+                            defaultValue:
+                              e.target.value === '' ? undefined : e.target.value,
+                          })
+                        }
+                        placeholder="Optional fallback when partner leaves it blank"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+
+                    {isNumeric && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Min
+                          </label>
+                          <Input
+                            type="number"
+                            value={row.validation?.min ?? ''}
+                            onChange={(e) =>
+                              updateValidation(idx, {
+                                min:
+                                  e.target.value === ''
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Max
+                          </label>
+                          <Input
+                            type="number"
+                            value={row.validation?.max ?? ''}
+                            onChange={(e) =>
+                              updateValidation(idx, {
+                                max:
+                                  e.target.value === ''
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {isString && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Min length
+                            </label>
+                            <Input
+                              type="number"
+                              value={row.validation?.minLength ?? ''}
+                              onChange={(e) =>
+                                updateValidation(idx, {
+                                  minLength:
+                                    e.target.value === ''
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Max length
+                            </label>
+                            <Input
+                              type="number"
+                              value={row.validation?.maxLength ?? ''}
+                              onChange={(e) =>
+                                updateValidation(idx, {
+                                  maxLength:
+                                    e.target.value === ''
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Pattern (regex)
+                          </label>
+                          <Input
+                            value={row.validation?.pattern ?? ''}
+                            onChange={(e) =>
+                              updateValidation(idx, {
+                                pattern:
+                                  e.target.value === '' ? undefined : e.target.value,
+                              })
+                            }
+                            placeholder="e.g. ^[A-Z]{2,3}$"
+                            className="h-8 text-sm font-mono"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

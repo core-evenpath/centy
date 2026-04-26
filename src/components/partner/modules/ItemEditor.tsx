@@ -224,18 +224,41 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
         }
     };
 
-    // Helper to render dynamic input based on field type
+    // Helper to render dynamic input based on field type. Every type
+    // in the ModuleFieldType union has a dedicated renderer so the
+    // partner-side editor honours the schema admin defined — no silent
+    // fallback to plain text. Validation hints (min/max/length/pattern)
+    // are forwarded to native input attributes when applicable.
     const renderFieldInput = (field: any) => {
         const fieldId = `fields.${field.id}`;
         const value = watchedFields.fields?.[field.id];
+        const v = field.validation ?? {};
 
         switch (field.type) {
             case 'textarea':
-                return <Textarea {...register(fieldId)} placeholder={field.placeholder} rows={3} />;
+                return (
+                    <Textarea
+                        {...register(fieldId)}
+                        placeholder={field.placeholder}
+                        rows={3}
+                        minLength={v.minLength}
+                        maxLength={v.maxLength}
+                    />
+                );
 
             case 'number':
             case 'currency':
-                return <Input type="number" step="0.01" {...register(fieldId)} placeholder={field.placeholder} />;
+            case 'duration':
+                return (
+                    <Input
+                        type="number"
+                        step={field.type === 'currency' ? '0.01' : 'any'}
+                        {...register(fieldId)}
+                        placeholder={field.placeholder}
+                        min={v.min}
+                        max={v.max}
+                    />
+                );
 
             case 'toggle':
                 return (
@@ -265,14 +288,137 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
                     </Select>
                 );
 
+            case 'multi_select': {
+                // Schema-defined multi_select stores an array of option
+                // strings. A scrollable checkbox group keeps the UI
+                // simple without pulling in a chip-picker dependency.
+                const arr: string[] = Array.isArray(value) ? value : [];
+                const toggleOption = (opt: string, checked: boolean) => {
+                    const next = checked
+                        ? Array.from(new Set([...arr, opt]))
+                        : arr.filter((o) => o !== opt);
+                    setValue(fieldId, next);
+                };
+                return (
+                    <div className="rounded-md border p-2 max-h-40 overflow-y-auto space-y-1">
+                        {(field.options ?? []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">
+                                No options defined for this field.
+                            </p>
+                        ) : (
+                            field.options.map((opt: string) => (
+                                <label
+                                    key={opt}
+                                    className="flex items-center gap-2 text-sm cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={arr.includes(opt)}
+                                        onChange={(e) => toggleOption(opt, e.target.checked)}
+                                    />
+                                    <span>{opt}</span>
+                                </label>
+                            ))
+                        )}
+                    </div>
+                );
+            }
+
+            case 'tags': {
+                // Free-form tags come from a single comma-separated
+                // input — pasting CSV is the partner's most common
+                // ingest pattern. Stored as string[] for downstream
+                // consumers (search, RAG, block renderers).
+                const arr: string[] = Array.isArray(value) ? value : [];
+                return (
+                    <Input
+                        type="text"
+                        value={arr.join(', ')}
+                        placeholder={field.placeholder || 'comma, separated, tags'}
+                        onChange={(e) =>
+                            setValue(
+                                fieldId,
+                                e.target.value
+                                    .split(',')
+                                    .map((s) => s.trim())
+                                    .filter(Boolean),
+                            )
+                        }
+                    />
+                );
+            }
+
+            case 'url':
+                return (
+                    <Input
+                        type="url"
+                        {...register(fieldId)}
+                        placeholder={field.placeholder || 'https://example.com'}
+                        pattern={v.pattern}
+                    />
+                );
+
+            case 'email':
+                return (
+                    <Input
+                        type="email"
+                        {...register(fieldId)}
+                        placeholder={field.placeholder || 'name@example.com'}
+                        pattern={v.pattern}
+                    />
+                );
+
+            case 'phone':
+                return (
+                    <Input
+                        type="tel"
+                        {...register(fieldId)}
+                        placeholder={field.placeholder || '+1 555 555 5555'}
+                        pattern={v.pattern}
+                    />
+                );
+
+            case 'image':
+                // Schema-level image fields hold a single URL — the
+                // canonical multi-image gallery lives on the dedicated
+                // Images tab. Partner pastes a URL here; preview
+                // appears below when it parses.
+                return (
+                    <div className="space-y-2">
+                        <Input
+                            type="url"
+                            {...register(fieldId)}
+                            placeholder={field.placeholder || 'https://…/image.jpg'}
+                        />
+                        {typeof value === 'string' && value.startsWith('http') && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={value}
+                                alt=""
+                                className="h-16 w-16 rounded border object-cover"
+                            />
+                        )}
+                    </div>
+                );
+
             case 'date':
                 return <Input type="date" {...register(fieldId)} />;
 
             case 'time':
                 return <Input type="time" {...register(fieldId)} />;
 
+            case 'text':
             default:
-                return <Input type="text" {...register(fieldId)} placeholder={field.placeholder} />;
+                return (
+                    <Input
+                        type="text"
+                        {...register(fieldId)}
+                        placeholder={field.placeholder}
+                        minLength={v.minLength}
+                        maxLength={v.maxLength}
+                        pattern={v.pattern}
+                    />
+                );
         }
     };
 
