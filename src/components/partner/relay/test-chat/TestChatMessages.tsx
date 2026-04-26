@@ -19,6 +19,10 @@ export interface TestChatMessage {
   suggestions?: string[];
   /** Flow stage that produced this message (surfaced for debugging). */
   stageId?: string;
+  /** Phase 3C: true when the block is rendering its internal sample
+   * data because the partner has no real items for this content type
+   * yet. Test-chat shows a "Sample data" badge above the block. */
+  isSample?: boolean;
 }
 
 // ── Scrollable message list ──────────────────────────────────────────
@@ -98,6 +102,7 @@ export default function TestChatMessages({
               <div key={i}>
                 {hasBlock ? (
                   <BotBubble text={safeText || undefined} emoji={brandEmoji} theme={theme}>
+                    {msg.isSample && <SampleDataBadge theme={theme} />}
                     <TestChatBlockPreview
                       blockId={msg.blockId!}
                       blockData={msg.blockData}
@@ -134,4 +139,38 @@ function looksLikeJson(text: string | undefined): boolean {
   if (!t) return false;
   const first = t[0];
   return first === '{' || first === '[';
+}
+
+// ── Sample-data badge (Phase 3C) ────────────────────────────────────
+//
+// Pinned above the block when the partner has no real data for it
+// yet — keeps it obvious that what's rendered is placeholder, not
+// their content. Test-chat-only; production never shows this.
+function SampleDataBadge({ theme }: { theme: RelayTheme }) {
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+        padding: '3px 8px',
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        background: 'rgba(217, 119, 6, 0.10)',
+        color: '#92400e',
+        border: '1px solid rgba(217, 119, 6, 0.30)',
+      }}
+      title="No real items yet — this block is rendering with sample placeholder data."
+    >
+      <span aria-hidden style={{ fontSize: 10 }}>•</span>
+      Sample data
+      <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.8, color: theme.t3 }}>
+        — add yours to make it live
+      </span>
+    </div>
+  );
 }
