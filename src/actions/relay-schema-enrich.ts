@@ -32,7 +32,9 @@ const MODEL = 'gemini-3.1-pro-preview';
 
 // Field types we accept from the LLM. Anything outside this set is
 // dropped during validation — Gemini occasionally hallucinates types
-// that aren't in our ModuleFieldDefinition union.
+// that aren't in our ModuleFieldDefinition union. Mirrors
+// relay-schema-edit's ALLOWED_TYPES so AI- and hand-edited schemas
+// stay shape-compatible.
 const ALLOWED_TYPES: ReadonlyArray<ModuleFieldDefinition['type']> = [
   'text',
   'textarea',
@@ -40,6 +42,11 @@ const ALLOWED_TYPES: ReadonlyArray<ModuleFieldDefinition['type']> = [
   'currency',
   'duration',
   'url',
+  'email',
+  'phone',
+  'date',
+  'time',
+  'image',
   'select',
   'multi_select',
   'tags',
@@ -78,7 +85,7 @@ Your task: propose 8-15 additional fields that an industry-standard ${ctx.family
 
 For each proposed field, return:
 - name: snake_case identifier (no spaces, no camelCase)
-- type: ONE of [text, textarea, number, currency, duration, url, select, multi_select, tags, toggle]
+- type: ONE of [text, textarea, number, currency, duration, url, email, phone, date, time, image, select, multi_select, tags, toggle]
 - isRequired: boolean — set FALSE for almost every suggested field. Only mark true if the block literally cannot render without this value (rare; partner-side data is often partial). The append step also clamps to false server-side, so prefer false here.
 - isSearchable: boolean — true for prose fields used in search/RAG
 - showInList: boolean — true when the field is useful in a list view
@@ -265,7 +272,7 @@ export async function appendFieldsToRelaySchemaAction(
     for (const s of fields) {
       // Re-check duplicates server-side: the diff UI may be stale.
       if (existingNameSet.has(s.name)) continue;
-      nextFields.push({
+      const next: ModuleFieldDefinition = {
         id: `fld_${s.name}`,
         name: s.name,
         type: s.type,
@@ -281,7 +288,14 @@ export async function appendFieldsToRelaySchemaAction(
         showInList: s.showInList,
         showInCard: s.showInCard,
         order: order++,
-      });
+      };
+      // Persist the AI-authored description so the schema editor can
+      // show it as a tooltip / inline help next to the field row,
+      // and the partner-side ItemEditor can surface it as field help.
+      if (typeof s.description === 'string' && s.description.trim()) {
+        next.description = s.description.trim();
+      }
+      nextFields.push(next);
       existingNameSet.add(s.name);
       appended++;
     }
