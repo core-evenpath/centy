@@ -1,0 +1,452 @@
+{
+  "_meta": {
+    "purpose": "Curated sample items for partner-side seeding. Replaces the generic 'Sample text 1' deterministic generator with realistic, slug-aware data so the editor's preview + test-chat blocks make sense at first glance.",
+    "schema": "Each top-level key is a relay schema slug. Value is an array of items in ModuleItem shape: { name, description, category, price, currency, isActive, images, fields }. Items beyond what the schema declares are kept in `fields` and ignored by block renderers — safe over-coverage.",
+    "edit": "Free to add new slugs / items. Slugs not present here fall back to the deterministic generator in relay-sample-data-actions.ts."
+  },
+
+  "food_beverage_menu": [
+    {
+      "name": "Margherita Pizza",
+      "description": "Naples-style pie with San Marzano tomato, fresh mozzarella di bufala, basil from our garden, and a drizzle of extra-virgin olive oil.",
+      "category": "Pizza",
+      "price": 14.99,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/EEEEEE/333333?text=Margherita"],
+      "fields": {
+        "ingredients": ["tomato", "mozzarella", "basil"],
+        "is_vegetarian": true,
+        "is_vegan": false,
+        "spice_level": "Mild",
+        "calories": 850,
+        "cooking_time": "12 min",
+        "serves": 1,
+        "allergens": ["gluten", "dairy"],
+        "tags": ["popular", "classic"]
+      }
+    },
+    {
+      "name": "Truffle Risotto",
+      "description": "Creamy Carnaroli rice slow-cooked with white wine, finished with shaved black truffle and aged parmigiano.",
+      "category": "Mains",
+      "price": 24.99,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/EEEEEE/333333?text=Risotto"],
+      "fields": {
+        "ingredients": ["carnaroli rice", "black truffle", "parmigiano", "white wine"],
+        "is_vegetarian": true,
+        "spice_level": "Mild",
+        "calories": 720,
+        "cooking_time": "25 min",
+        "serves": 1,
+        "allergens": ["dairy"],
+        "tags": ["chef-special", "seasonal"]
+      }
+    },
+    {
+      "name": "Grilled Branzino",
+      "description": "Whole Mediterranean sea bass, salt-baked and finished over coals, with lemon, capers, and roasted fennel.",
+      "category": "Mains",
+      "price": 32.00,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/EEEEEE/333333?text=Branzino"],
+      "fields": {
+        "ingredients": ["branzino", "lemon", "capers", "fennel"],
+        "is_vegetarian": false,
+        "spice_level": "Mild",
+        "calories": 540,
+        "cooking_time": "20 min",
+        "serves": 1,
+        "allergens": ["fish"],
+        "tags": ["seafood", "gluten-free"]
+      }
+    }
+  ],
+
+  "food_beverage_beverage": [
+    {
+      "name": "House Espresso",
+      "description": "Single-origin Ethiopian beans, pulled short and intense — served with a small biscotti.",
+      "category": "Coffee",
+      "price": 4.00,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/8B4513/FFFFFF?text=Espresso"],
+      "fields": {
+        "size": "30ml",
+        "is_alcoholic": false,
+        "caffeine_mg": 64,
+        "temperature": "Hot",
+        "tags": ["coffee", "single-origin"]
+      }
+    },
+    {
+      "name": "Aperol Spritz",
+      "description": "Aperol, prosecco, and a splash of soda over ice with an orange wheel — the original Italian aperitivo.",
+      "category": "Cocktail",
+      "price": 14.00,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/FF6B35/FFFFFF?text=Spritz"],
+      "fields": {
+        "size": "300ml",
+        "is_alcoholic": true,
+        "abv_percent": 11,
+        "temperature": "Cold",
+        "tags": ["aperitif", "popular"]
+      }
+    },
+    {
+      "name": "Sparkling Water",
+      "description": "750ml Acqua Panna or San Pellegrino, served chilled.",
+      "category": "Non-alcoholic",
+      "price": 5.00,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/E0F0FF/333333?text=Water"],
+      "fields": {
+        "size": "750ml",
+        "is_alcoholic": false,
+        "temperature": "Cold",
+        "tags": ["water"]
+      }
+    }
+  ],
+
+  "food_beverage_booking": [
+    {
+      "name": "Window table for 2",
+      "description": "Two-top by the front windows — best for a quiet date night.",
+      "category": "Indoor",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/F5F5DC/333333?text=Window+Table"],
+      "fields": {
+        "party_size": 2,
+        "duration_minutes": 90,
+        "available_times": ["18:00", "19:00", "20:00", "21:00"],
+        "deposit_required": false,
+        "tags": ["romantic", "popular"]
+      }
+    },
+    {
+      "name": "Outdoor patio for 4",
+      "description": "Heated patio table under string lights — pet-friendly section.",
+      "category": "Outdoor",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/9CAF88/FFFFFF?text=Patio"],
+      "fields": {
+        "party_size": 4,
+        "duration_minutes": 120,
+        "available_times": ["17:30", "18:30", "19:30", "20:30"],
+        "deposit_required": false,
+        "tags": ["pet-friendly", "outdoor"]
+      }
+    },
+    {
+      "name": "Private dining for 8",
+      "description": "Private back room with dedicated server — ideal for celebrations or business dinners.",
+      "category": "Private",
+      "price": 200,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/4A4A4A/FFFFFF?text=Private+Room"],
+      "fields": {
+        "party_size": 8,
+        "duration_minutes": 180,
+        "available_times": ["19:00", "20:00"],
+        "deposit_required": true,
+        "deposit_amount": 200,
+        "tags": ["private", "celebration"]
+      }
+    }
+  ],
+
+  "food_beverage_marketing": [
+    {
+      "name": "Happy Hour",
+      "description": "Half-price cocktails and select small plates, every weekday from 5–7pm at the bar.",
+      "category": "Recurring",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/FFA500/FFFFFF?text=Happy+Hour"],
+      "fields": {
+        "discount_code": "HAPPY50",
+        "discount_percent": 50,
+        "valid_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        "valid_hours": "17:00-19:00",
+        "expires_at": "2027-12-31",
+        "headline": "Half-price cocktails 5–7pm",
+        "cta_label": "Reserve a seat",
+        "tags": ["recurring", "drinks"]
+      }
+    },
+    {
+      "name": "Date Night Special",
+      "description": "Three-course tasting menu for two with a bottle of house wine — Friday and Saturday only.",
+      "category": "Weekend",
+      "price": 89,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/8B0000/FFFFFF?text=Date+Night"],
+      "fields": {
+        "discount_code": "DATE89",
+        "valid_days": ["Fri", "Sat"],
+        "expires_at": "2027-06-30",
+        "headline": "$89 for two — wine included",
+        "cta_label": "Book a table",
+        "tags": ["couples", "weekend"]
+      }
+    },
+    {
+      "name": "Sunday Brunch Mimosa",
+      "description": "Free mimosa with any brunch entrée, every Sunday until 2pm.",
+      "category": "Brunch",
+      "price": 0,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/FFD700/333333?text=Brunch"],
+      "fields": {
+        "discount_code": "BRUNCH",
+        "valid_days": ["Sun"],
+        "valid_hours": "10:00-14:00",
+        "expires_at": "2027-12-31",
+        "headline": "Free mimosa with brunch",
+        "cta_label": "See brunch menu",
+        "tags": ["brunch", "weekend"]
+      }
+    }
+  ],
+
+  "food_beverage_info": [
+    {
+      "name": "Hours of operation",
+      "description": "Monday–Friday 11am–10pm, Saturday–Sunday 10am–11pm. Last seating 30 minutes before close.",
+      "category": "Hours",
+      "isActive": true,
+      "fields": {
+        "weekday_hours": "11:00-22:00",
+        "weekend_hours": "10:00-23:00",
+        "last_seating_offset_minutes": 30,
+        "tags": ["hours"]
+      }
+    },
+    {
+      "name": "Location & Parking",
+      "description": "123 Main Street, San Francisco. Validated parking in the adjacent garage; street parking available after 6pm.",
+      "category": "Location",
+      "isActive": true,
+      "fields": {
+        "address": "123 Main Street, San Francisco, CA 94105",
+        "parking_available": true,
+        "parking_validated": true,
+        "transit_nearest": "Montgomery BART (5 min walk)",
+        "tags": ["location", "parking"]
+      }
+    },
+    {
+      "name": "Dress code & policies",
+      "description": "Smart casual. We require advance notice for parties over 8. Children welcome before 8pm.",
+      "category": "Policies",
+      "isActive": true,
+      "fields": {
+        "dress_code": "Smart casual",
+        "kids_friendly": true,
+        "kids_friendly_until": "20:00",
+        "large_party_threshold": 8,
+        "tags": ["policies"]
+      }
+    }
+  ],
+
+  "food_beverage_people": [
+    {
+      "name": "Chef Marco Rossi",
+      "description": "Executive Chef. Trained in Bologna, ten years at Eleven Madison Park before opening here. Specializes in modern Italian.",
+      "category": "Chef",
+      "isActive": true,
+      "images": ["https://placehold.co/400x400/D2B48C/FFFFFF?text=Chef+Marco"],
+      "fields": {
+        "role": "Executive Chef",
+        "specialty": "Modern Italian",
+        "years_experience": 18,
+        "tags": ["leadership", "kitchen"]
+      }
+    },
+    {
+      "name": "Alice Chen",
+      "description": "Wine Director. Court of Master Sommeliers Advanced certification. Curates a 200-label list with strong Italian and Burgundian focus.",
+      "category": "Sommelier",
+      "isActive": true,
+      "images": ["https://placehold.co/400x400/722F37/FFFFFF?text=Alice"],
+      "fields": {
+        "role": "Wine Director",
+        "specialty": "Italian wines, Burgundy",
+        "certifications": ["Court of Master Sommeliers Advanced"],
+        "tags": ["wine", "leadership"]
+      }
+    },
+    {
+      "name": "Sophia Williams",
+      "description": "Pastry Chef. Pastry Chef of the Year 2023 (SF Magazine). Famous for the seasonal tasting flight.",
+      "category": "Pastry",
+      "isActive": true,
+      "images": ["https://placehold.co/400x400/F8C8DC/333333?text=Sophia"],
+      "fields": {
+        "role": "Pastry Chef",
+        "specialty": "Seasonal desserts",
+        "awards": ["Pastry Chef of the Year 2023 (SF Magazine)"],
+        "tags": ["pastry", "kitchen"]
+      }
+    }
+  ],
+
+  "food_beverage_social_proof": [
+    {
+      "name": "Sarah K.",
+      "description": "“Best risotto I’ve had outside of Milan. The truffle was real and generous, the rice perfectly al dente. Already booked our anniversary here.”",
+      "category": "Yelp",
+      "isActive": true,
+      "fields": {
+        "rating": 5,
+        "source": "Yelp",
+        "reviewer_name": "Sarah K.",
+        "review_date": "2026-03-12",
+        "verified": true,
+        "tags": ["food", "ambiance"]
+      }
+    },
+    {
+      "name": "Michael R.",
+      "description": "“Romantic atmosphere, attentive but unobtrusive staff, and the wine pairing made the whole night. Easy 5 stars.”",
+      "category": "Google",
+      "isActive": true,
+      "fields": {
+        "rating": 5,
+        "source": "Google",
+        "reviewer_name": "Michael R.",
+        "review_date": "2026-02-28",
+        "verified": true,
+        "tags": ["service", "wine"]
+      }
+    },
+    {
+      "name": "Jenny L.",
+      "description": "“The chef’s table was unforgettable — six courses, each paired thoughtfully. Worth every dollar.”",
+      "category": "OpenTable",
+      "isActive": true,
+      "fields": {
+        "rating": 5,
+        "source": "OpenTable",
+        "reviewer_name": "Jenny L.",
+        "review_date": "2026-01-19",
+        "verified": true,
+        "tags": ["chef-table", "tasting"]
+      }
+    }
+  ],
+
+  "food_beverage_events": [
+    {
+      "name": "Wine Pairing Night — Tuscany",
+      "description": "Five-course menu paired with five Tuscan wines. Sommelier Alice walks the table through each pour.",
+      "category": "Wine",
+      "price": 85,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/722F37/FFFFFF?text=Wine+Night"],
+      "fields": {
+        "event_date": "2026-05-15",
+        "event_time": "19:00",
+        "duration_minutes": 150,
+        "capacity": 24,
+        "seats_available": 8,
+        "deposit_required": true,
+        "tags": ["wine", "tuscany", "ticketed"]
+      }
+    },
+    {
+      "name": "Chef’s Table Saturday",
+      "description": "Six-course chef’s tasting at the kitchen counter — Marco cooks in front of you. Limited to four guests per night.",
+      "category": "Tasting",
+      "price": 150,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/8B4513/FFFFFF?text=Chef+Table"],
+      "fields": {
+        "event_date": "Every Saturday",
+        "event_time": "19:00",
+        "duration_minutes": 180,
+        "capacity": 4,
+        "seats_available": 2,
+        "deposit_required": true,
+        "tags": ["chef-table", "weekly"]
+      }
+    },
+    {
+      "name": "Easter Sunday Brunch",
+      "description": "Family-style brunch with a kids’ menu and live jazz trio. Reservations strongly recommended.",
+      "category": "Brunch",
+      "price": 65,
+      "currency": "USD",
+      "isActive": true,
+      "images": ["https://placehold.co/600x400/F8C8DC/333333?text=Easter"],
+      "fields": {
+        "event_date": "2026-04-09",
+        "event_time": "10:00",
+        "duration_minutes": 240,
+        "capacity": 80,
+        "seats_available": 32,
+        "deposit_required": false,
+        "kids_menu": true,
+        "tags": ["brunch", "holiday", "kids"]
+      }
+    }
+  ],
+
+  "food_beverage_preferences": [
+    {
+      "name": "Gluten-Free",
+      "description": "12 menu items are naturally gluten-free; another 8 can be prepared GF on request. Dedicated fryer.",
+      "category": "Dietary",
+      "isActive": true,
+      "fields": {
+        "available_items_count": 12,
+        "modifiable_items_count": 8,
+        "dedicated_prep": true,
+        "tags": ["gluten-free", "dietary"]
+      }
+    },
+    {
+      "name": "Vegan",
+      "description": "Six fully vegan options across appetizers, mains, and desserts. Plant-based wine list also available.",
+      "category": "Dietary",
+      "isActive": true,
+      "fields": {
+        "available_items_count": 6,
+        "modifiable_items_count": 4,
+        "dedicated_prep": false,
+        "tags": ["vegan", "plant-based"]
+      }
+    },
+    {
+      "name": "Nut Allergy",
+      "description": "Nuts are used in our pastry kitchen. Notify your server and we’ll route around them — most savory dishes are nut-free already.",
+      "category": "Allergy",
+      "isActive": true,
+      "fields": {
+        "shared_kitchen_warning": true,
+        "modifiable_items_count": 90,
+        "dedicated_prep": false,
+        "tags": ["allergy", "safety"]
+      }
+    }
+  ]
+}
