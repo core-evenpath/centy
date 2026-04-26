@@ -252,6 +252,8 @@ function SchemaTile({
           )}
         </div>
 
+        <AppearsInRow appearsIn={schema.appearsIn} />
+
         {previews.length > 0 && (
           <ul className="mt-3 pt-3 border-t space-y-1">
             {previews.map((p) => (
@@ -278,6 +280,36 @@ function SchemaTile({
         )}
       </div>
     </Link>
+  );
+}
+
+function AppearsInRow({
+  appearsIn,
+}: {
+  appearsIn?: Array<{ id: string; label: string }>;
+}) {
+  if (!appearsIn || appearsIn.length === 0) return null;
+  // Cap visible labels so the tile stays scannable; everything beyond
+  // the cap collapses into a "+N more" — the full list is admin-side
+  // concern, not partner-facing.
+  const VISIBLE = 2;
+  const visible = appearsIn.slice(0, VISIBLE);
+  const overflow = appearsIn.length - visible.length;
+  return (
+    <div className="mt-2 text-[10px] text-muted-foreground line-clamp-1">
+      <span className="uppercase tracking-wide font-semibold mr-1">
+        Appears in
+      </span>
+      {visible.map((b, i) => (
+        <span key={b.id}>
+          {i > 0 ? ', ' : ''}
+          <span className="font-medium text-foreground/80">{b.label}</span>
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className="ml-1 italic">+{overflow} more</span>
+      )}
+    </div>
   );
 }
 

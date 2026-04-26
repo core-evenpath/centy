@@ -32,6 +32,8 @@ import RelayPageIntro from '../../components/RelayPageIntro';
 import SchemaFieldsPanel from './SchemaFieldsPanel';
 import SchemaConsumersPanel from './SchemaConsumersPanel';
 import EnrichButton from './EnrichButton';
+import ContentCategorySelector from './ContentCategorySelector';
+import type { ContentCategory } from '@/lib/relay/content-categories';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -79,6 +81,21 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
   const enrichedModel = (schema as unknown as { lastEnrichedModel?: string })
     .lastEnrichedModel;
 
+  // Phase 1B: doc-level content category override (drives partner page
+  // grouping at /partner/relay/data). Null/missing means inferred.
+  const rawCategory = (schema as unknown as { contentCategory?: unknown })
+    .contentCategory;
+  const initialCategoryOverride: ContentCategory | null =
+    typeof rawCategory === 'string' &&
+    (rawCategory === 'products' ||
+      rawCategory === 'bookings' ||
+      rawCategory === 'offers' ||
+      rawCategory === 'about' ||
+      rawCategory === 'operations' ||
+      rawCategory === 'other')
+      ? (rawCategory as ContentCategory)
+      : null;
+
   return (
     <div className="container mx-auto py-4 px-6 flex flex-col gap-4">
       <RelaySubNav />
@@ -95,7 +112,7 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
       </Button>
 
       <div className="flex items-start justify-between gap-2 flex-wrap">
-        <div className="text-sm text-muted-foreground space-y-0.5">
+        <div className="text-sm text-muted-foreground space-y-1">
           <div>
             {schema.schema?.fields?.length ?? 0} fields ·{' '}
             {consumerBlocks.length} consumer block
@@ -117,6 +134,10 @@ export default async function RelaySchemaViewerPage({ params }: PageProps) {
               <span className="italic">No generation provenance recorded.</span>
             )}
           </div>
+          <ContentCategorySelector
+            slug={slug}
+            initialOverride={initialCategoryOverride}
+          />
         </div>
         <EnrichButton slug={slug} />
       </div>

@@ -23,6 +23,7 @@ import {
 } from '@/lib/relay/relay-verticals';
 import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
 import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
+import { getBlocksForModule } from '@/lib/relay/block-module-graph';
 import {
   inferContentCategory,
   humanizeFamilyFromSlug,
@@ -55,6 +56,12 @@ export interface PartnerSchemaCard {
    *  the consolidated /partner/relay/data view (PR fix-21). Empty
    *  when the schema has no items. */
   previewItems?: Array<{ id: string; name: string; subtitle?: string }>;
+  /**
+   * Active blocks that consume this schema's data (Phase 1B). Used by
+   * the partner tile to show "Appears in: X, Y, …" so partners can see
+   * where their content surfaces without learning block ids.
+   */
+  appearsIn?: Array<{ id: string; label: string }>;
 }
 
 export interface PartnerSchemasResult {
@@ -285,14 +292,22 @@ export async function listPartnerSchemasAction(
       // carry (e.g. "Food Beverage Menu" → "Menu"). When the schema doc
       // has no friendly name, the family token from the slug is used.
       const displayName = friendlyName(rawName, slug);
-      // Admin override wins over inference. The override field arrives
-      // in Phase 1B; until then this just falls through to the slug
-      // inference for every schema.
+      // Admin override wins over inference. Persisted via
+      // setRelaySchemaContentCategoryAction; missing/null falls
+      // through to slug-based inference.
       const contentCategory: ContentCategory =
         typeof data?.contentCategory === 'string' &&
         isValidContentCategory(data.contentCategory)
           ? data.contentCategory
           : inferContentCategory(slug);
+      // Active blocks that read from this schema (Phase 1B). Block
+      // .reads[] is the contract — every active block listed here
+      // surfaces this schema's items somewhere in chat. Capped to
+      // active so deprecated/sunset blocks don't promise placements
+      // partners can't actually use.
+      const consumerBlocks = getBlocksForModule(slug, ALL_BLOCKS_DATA)
+        .filter((b) => b.status === 'active')
+        .map((b) => ({ id: b.id, label: b.label }));
       return {
         slug,
         name: rawName,
@@ -305,6 +320,7 @@ export async function listPartnerSchemasAction(
         itemCount: itemCountBySlug.get(slug) ?? 0,
         hasModule: enabledSlugs.has(slug),
         previewItems: previewBySlug.get(slug),
+        appearsIn: consumerBlocks.length > 0 ? consumerBlocks : undefined,
       };
     });
 
