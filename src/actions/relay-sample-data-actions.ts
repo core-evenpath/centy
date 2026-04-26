@@ -23,6 +23,7 @@ import {
     bulkCreateModuleItemsAction,
     getModuleItemsAction,
     deleteAllModuleItemsAction,
+    deleteModuleItemAction,
 } from '@/actions/modules-actions';
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleItem } from '@/lib/modules/types';
@@ -251,17 +252,35 @@ function fixtureToSampleItem(f: FixtureItem): SampleItem {
 }
 
 
+// Description prefixes the deterministic generator emits — used by
+// `replaceAutoSamples` to identify items safe to delete on Refresh.
+// Partner-entered items don't start with these strings; their
+// descriptions are user-authored prose.
+const AUTO_SAMPLE_DESCRIPTION_RE =
+    /^Auto-generated (sample for previewing|placeholder for) /;
+
 export async function seedSampleItemsAction(
     partnerId: string,
     moduleSlug: string,
     userId: string,
     options?: {
         skipIfItemsExist?: boolean;
+        /**
+         * When true, before checking `skipIfItemsExist` the action
+         * deletes any item whose description matches the auto-generator
+         * boilerplate. Curated fixture items + partner-edited items are
+         * NOT deleted — they have realistic descriptions that don't
+         * match the heuristic. Used by the partner-side "Refresh
+         * samples" flow to swap stale generic items for fresh fixtures.
+         */
+        replaceAutoSamples?: boolean;
     },
 ): Promise<{
     success: boolean;
     created?: number;
     enabled?: boolean;
+    /** Auto-generated items deleted by the replaceAutoSamples pass. */
+    deletedAutoSamples?: number;
     error?: string;
 }> {
     try {
@@ -296,11 +315,48 @@ export async function seedSampleItemsAction(
 
         const moduleId = pm.data.partnerModule.id;
 
+        // ── replaceAutoSamples (Refresh) ────────────────────────────
+        // Wipe legacy generic items so the fresh fixture pass below
+        // can land. We page through up to 200 items per module — well
+        // above any realistic seed count. Partner items survive because
+        // their descriptions don't match the auto-gen pattern.
+        let deletedAutoSamples = 0;
+        if (options?.replaceAutoSamples) {
+            const existing = await getModuleItemsAction(partnerId, moduleId, {
+                pageSize: 200,
+            });
+            const itemsToDelete =
+                existing.success && existing.data
+                    ? existing.data.items.filter(
+                          (it) =>
+                              typeof it.description === 'string' &&
+                              AUTO_SAMPLE_DESCRIPTION_RE.test(it.description),
+                      )
+                    : [];
+            for (const it of itemsToDelete) {
+                try {
+                    const del = await deleteModuleItemAction(
+                        partnerId,
+                        moduleId,
+                        it.id,
+                    );
+                    if (del.success) deletedAutoSamples++;
+                } catch {
+                    // non-fatal — partial delete still valuable
+                }
+            }
+        }
+
         if (options?.skipIfItemsExist) {
             const existing = await getModuleItemsAction(partnerId, moduleId, { pageSize: 1 });
             const total = existing.success ? existing.data?.total ?? 0 : 0;
             if (total > 0) {
-                return { success: true, created: 0, enabled: didEnable };
+                return {
+                    success: true,
+                    created: 0,
+                    enabled: didEnable,
+                    deletedAutoSamples,
+                };
             }
         }
 
@@ -312,6 +368,7 @@ export async function seedSampleItemsAction(
             success: true,
             created: res.data?.created ?? 0,
             enabled: didEnable,
+            deletedAutoSamples,
         };
     } catch (err: any) {
         console.error('[sample-data] seedSampleItemsAction failed:', err);
