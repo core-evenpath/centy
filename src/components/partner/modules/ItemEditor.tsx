@@ -3,6 +3,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { ModuleItem, ModuleSchema, PartnerModule } from '@/lib/modules/types';
+import {
+    getIdentityPrefillForField,
+    type PartnerIdentity,
+} from '@/lib/partner/identity-prefill';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,6 +28,14 @@ interface ItemEditorProps {
     initialItem?: Partial<ModuleItem>;
     module: PartnerModule;
     schema: ModuleSchema;
+    /**
+     * Phase 3A: optional business-identity slice. When present and the
+     * partner is creating a NEW item (no `initialItem.id`), schema fields
+     * with names matching identity attributes (phone/email/etc.) are
+     * pre-filled — partner sees the value already populated instead of
+     * a blank input.
+     */
+    identity?: PartnerIdentity | null;
     onSave: (item: Partial<ModuleItem>) => Promise<void>;
     onCancel: () => void;
 }
@@ -39,7 +51,7 @@ interface UploadingImage {
     preview: string;
 }
 
-export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: ItemEditorProps) {
+export function ItemEditor({ initialItem, module, schema, identity, onSave, onCancel }: ItemEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('basic');
     const [uploadedImages, setUploadedImages] = useState<string[]>(initialItem?.images || []);
@@ -69,7 +81,15 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     // Hydrate `fields` defaults from the initial item, accepting both the
     // canonical key (`field.name`) and the legacy key (`field.id`, which
     // schema fields produce as `fld_<name>`). Anything still empty falls
-    // back to the schema's `defaultValue` so blocks always have data.
+    // back to the schema's `defaultValue`, then to a partner-identity
+    // prefill (only on NEW items — never overwrite a saved blank).
+    //
+    // Precedence (highest first):
+    //   1. canonical field.name from existing item
+    //   2. legacy field.id from existing item (auto-migrates on save)
+    //   3. schema.defaultValue
+    //   4. partner identity prefill (new items only)
+    const isNewItem = !initialItem?.id;
     const buildFieldDefaults = (): Record<string, any> => {
         const seed = (initialItem?.fields ?? {}) as Record<string, any>;
         const out: Record<string, any> = {};
@@ -84,6 +104,16 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
                 out[key] = fromLegacy;
             } else if ((f as any).defaultValue !== undefined && (f as any).defaultValue !== null) {
                 out[key] = (f as any).defaultValue;
+            } else if (isNewItem) {
+                // Phase 3A: identity prefill. Only schema fields whose name
+                // unambiguously means a partner attribute (phone, email,
+                // currency, etc.) get auto-filled. Custom fields and
+                // unknown names skip this branch silently.
+                const prefilled = getIdentityPrefillForField(
+                    (f as any).name,
+                    identity ?? null,
+                );
+                if (prefilled !== undefined) out[key] = prefilled;
             }
         }
         return out;

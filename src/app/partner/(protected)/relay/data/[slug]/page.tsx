@@ -15,6 +15,8 @@ import {
     exportModuleItemsAction,
     getRelaySchemaTemplateCSVAction,
 } from '@/actions/modules-actions';
+import { getPartnerIdentityAction } from '@/actions/partner-identity';
+import type { PartnerIdentity } from '@/lib/partner/identity-prefill';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Settings, Package, Trash2, Loader2, AlertTriangle, Upload, Download, ChevronDown, Sparkles, FileDown } from 'lucide-react';
 import { ImportDialog } from '@/components/partner/modules/ImportDialog';
@@ -75,6 +77,21 @@ export default function ModuleManagePage({ params }: PageProps) {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
     const [showCustomFields, setShowCustomFields] = useState(false);
+    // Phase 3A: business identity slice for prefill in ItemEditor.
+    // Loaded once per page mount; passed straight through to the editor.
+    const [identity, setIdentity] = useState<PartnerIdentity | null>(null);
+
+    useEffect(() => {
+        if (!partnerId) return;
+        let cancelled = false;
+        getPartnerIdentityAction(partnerId).then((res) => {
+            if (cancelled) return;
+            if (res.success) setIdentity(res.identity);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [partnerId]);
 
     // PR fix-21: per-slug "Load sample items" button removed in favour of
     // the single "Generate sample data" CTA on /partner/relay/data which
@@ -399,6 +416,7 @@ export default function ModuleManagePage({ params }: PageProps) {
                                     initialItem={editingItem}
                                     module={partnerModule}
                                     schema={schema}
+                                    identity={identity}
                                     onSave={handleSave}
                                     onCancel={() => setIsEditorOpen(false)}
                                 />
