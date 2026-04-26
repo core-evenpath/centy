@@ -13,6 +13,7 @@
 
 import { db as adminDb } from '@/lib/firebase-admin';
 import type { ModuleFieldDefinition, SystemModule } from '@/lib/modules/types';
+import type { ContentCategory } from '@/lib/relay/content-categories';
 
 // Allowed field types — the full ModuleFieldType union the rest of the
 // system supports. Kept in sync with relay-schema-enrich's ALLOWED_TYPES
@@ -217,3 +218,60 @@ export async function updateRelaySchemaFieldsAction(
 // Re-export the type so the client editor can import without
 // pulling the action server bundle.
 export type { ModuleFieldDefinition } from '@/lib/modules/types';
+
+// ── Content-category override (Phase 1B) ────────────────────────────
+//
+// Admin-set value pinned on `relaySchemas/{slug}.contentCategory`.
+// Wins over the slug-derived inference at read time
+// (listPartnerSchemasAction). Passing `null` clears the override and
+// lets the inference apply again.
+
+const VALID_CONTENT_CATEGORIES: ReadonlyArray<ContentCategory> = [
+  'products',
+  'bookings',
+  'offers',
+  'about',
+  'operations',
+  'other',
+];
+
+export interface SetContentCategoryResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function setRelaySchemaContentCategoryAction(
+  slug: string,
+  category: ContentCategory | null,
+): Promise<SetContentCategoryResult> {
+  try {
+    if (!slug || typeof slug !== 'string') {
+      return { success: false, error: 'slug is required' };
+    }
+    if (
+      category !== null &&
+      !VALID_CONTENT_CATEGORIES.includes(category as ContentCategory)
+    ) {
+      return { success: false, error: `Invalid content category: "${category}"` };
+    }
+
+    const ref = adminDb.collection('relaySchemas').doc(slug);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      return { success: false, error: `relaySchemas/${slug} not found` };
+    }
+    const stamp = new Date().toISOString();
+    // Firestore: writing a literal undefined would error, so the clear
+    // path uses FieldValue.delete equivalent via null + a typed read at
+    // the consumer (listPartnerSchemasAction validates the string).
+    await ref.update({
+      contentCategory: category ?? null,
+      lastEditedAt: stamp,
+      updatedAt: stamp,
+    });
+    return { success: true };
+  } catch (err: any) {
+    console.error('[relay-schema-edit] setContentCategory failed:', err);
+    return { success: false, error: err?.message ?? 'unknown' };
+  }
+}
