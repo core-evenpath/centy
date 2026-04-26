@@ -147,9 +147,21 @@ function normalizeItem(raw: any): Record<string, unknown> {
   // schema-defined fields like `headline`, `tagline`, `calories`,
   // `discount_code`, `expires_at`, etc. are reachable as
   // `data.{fieldName}` in renderers.
+  //
+  // Two write conventions exist in partner data: the sample-data
+  // seeder + post-Phase-0 ItemEditor write under bare `field.name`
+  // keys; legacy ItemEditor / InventoryManager writes used the
+  // `fld_<name>` field.id token. Both are aliased here so block
+  // `reads[]` (which always uses bare names) finds the value either
+  // way. New writers should standardize on bare names; the alias is
+  // a safety net for historical items + any code path we missed.
   if (raw.fields && typeof raw.fields === 'object') {
     for (const [k, v] of Object.entries(raw.fields)) {
       if (out[k] === undefined) out[k] = v;
+      if (k.startsWith('fld_')) {
+        const bare = k.slice(4);
+        if (bare && out[bare] === undefined) out[bare] = v;
+      }
     }
   }
 

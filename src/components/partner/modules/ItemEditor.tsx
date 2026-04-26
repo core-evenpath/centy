@@ -57,6 +57,38 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
         })),
     ].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
+    // Storage key per field. Schema fields use the bare `name` so block
+    // `reads[]` (always bare names) finds the value during render —
+    // sample-data seeding already writes this way. Partner custom fields
+    // are never read by blocks; they keep their unique `id` as the
+    // storage key so two custom fields with the same human label can't
+    // collide.
+    const getStorageKey = (field: any): string =>
+        'addedAt' in field ? field.id : field.name;
+
+    // Hydrate `fields` defaults from the initial item, accepting both the
+    // canonical key (`field.name`) and the legacy key (`field.id`, which
+    // schema fields produce as `fld_<name>`). Anything still empty falls
+    // back to the schema's `defaultValue` so blocks always have data.
+    const buildFieldDefaults = (): Record<string, any> => {
+        const seed = (initialItem?.fields ?? {}) as Record<string, any>;
+        const out: Record<string, any> = {};
+        for (const f of allFields) {
+            const key = getStorageKey(f);
+            const fromCanonical = seed[key];
+            const fromLegacy = key !== (f as any).id ? seed[(f as any).id] : undefined;
+            if (fromCanonical !== undefined) {
+                out[key] = fromCanonical;
+            } else if (fromLegacy !== undefined) {
+                // Auto-migrate on next save: read legacy, write canonical.
+                out[key] = fromLegacy;
+            } else if ((f as any).defaultValue !== undefined && (f as any).defaultValue !== null) {
+                out[key] = (f as any).defaultValue;
+            }
+        }
+        return out;
+    };
+
     const defaultValues = {
         name: '',
         description: '',
@@ -65,9 +97,12 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
         isFeatured: false,
         price: 0,
         currency: module.settings.defaultCurrency || 'INR',
-        fields: {},
-        images: [],
         ...initialItem,
+        // Override after the spread so our merged-with-defaults version
+        // wins over `initialItem.fields` (which would otherwise leak
+        // legacy `fld_<name>` keys back into the form state).
+        fields: buildFieldDefaults(),
+        images: initialItem?.images ?? [],
     };
 
     const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
@@ -230,8 +265,9 @@ export function ItemEditor({ initialItem, module, schema, onSave, onCancel }: It
     // fallback to plain text. Validation hints (min/max/length/pattern)
     // are forwarded to native input attributes when applicable.
     const renderFieldInput = (field: any) => {
-        const fieldId = `fields.${field.id}`;
-        const value = watchedFields.fields?.[field.id];
+        const storageKey = getStorageKey(field);
+        const fieldId = `fields.${storageKey}`;
+        const value = watchedFields.fields?.[storageKey];
         const v = field.validation ?? {};
 
         switch (field.type) {
