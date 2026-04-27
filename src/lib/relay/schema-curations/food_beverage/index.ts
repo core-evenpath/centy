@@ -17,11 +17,12 @@ import type { CuratedSchema } from '../types';
 //   import menu from './menu';
 import menu from './menu';
 import beverage from './beverage';
+import booking from './booking';
 
 const schemas: Record<string, CuratedSchema> = {
   food_beverage_menu: menu,
   food_beverage_beverage: beverage,
-  // food_beverage_booking: booking,
+  food_beverage_booking: booking,
   // food_beverage_marketing: marketing,
   // food_beverage_info: info,
   // food_beverage_people: people,
