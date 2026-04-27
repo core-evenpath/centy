@@ -19,13 +19,14 @@ import menu from './menu';
 import beverage from './beverage';
 import booking from './booking';
 import marketing from './marketing';
+import info from './info';
 
 const schemas: Record<string, CuratedSchema> = {
   food_beverage_menu: menu,
   food_beverage_beverage: beverage,
   food_beverage_booking: booking,
   food_beverage_marketing: marketing,
-  // food_beverage_info: info,
+  food_beverage_info: info,
   // food_beverage_people: people,
   // food_beverage_social_proof: socialProof,
   // food_beverage_events: events,
