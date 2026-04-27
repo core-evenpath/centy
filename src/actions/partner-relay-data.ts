@@ -21,7 +21,10 @@ import {
   RELAY_VERTICALS,
   type RelayVertical,
 } from '@/lib/relay/relay-verticals';
-import { seedSampleItemsAction } from '@/actions/relay-sample-data-actions';
+import {
+  seedSampleItemsAction,
+  clearSeededItemsForModulesAction,
+} from '@/actions/relay-sample-data-actions';
 import { ALL_BLOCKS_DATA } from '@/app/admin/relay/blocks/previews/_registry-data';
 import { getBlocksForModule } from '@/lib/relay/block-module-graph';
 import {
@@ -532,6 +535,162 @@ export async function seedAllVerticalSchemasAction(
   } catch (err: any) {
     console.error(
       '[partner-relay-data] seedAllVerticalSchemasAction failed:',
+      err,
+    );
+    return { success: false, error: err?.message ?? 'unknown' };
+  }
+}
+
+// ── Auto-seed gate (Phase 5) ────────────────────────────────────────
+//
+// Runs seedAllVerticalSchemasAction once per partner, gated by a
+// timestamp on the partner doc. Called on first visit to
+// /partner/relay/data so partners see realistic content out of the
+// box without clicking anything. After the first successful seed
+// the flag pins the partner; subsequent visits are no-ops, and
+// "Clear sample data" doesn't trigger a re-seed.
+
+export interface AutoSeedResult {
+  success: boolean;
+  /** True when this call actually seeded; false when the gate skipped. */
+  ranSeed: boolean;
+  /** When the auto-seed was first applied for this partner. */
+  seededAt?: string;
+  totalItemsCreated?: number;
+  error?: string;
+}
+
+export async function autoSeedSamplesIfNeededAction(
+  partnerId: string,
+  userId: string,
+): Promise<AutoSeedResult> {
+  try {
+    if (!adminDb) return { success: false, ranSeed: false, error: 'Database not available' };
+    if (!partnerId) {
+      return { success: false, ranSeed: false, error: 'partnerId is required' };
+    }
+
+    const partnerRef = adminDb.collection('partners').doc(partnerId);
+    const partnerSnap = await partnerRef.get();
+    const partnerData = partnerSnap.exists ? (partnerSnap.data() as any) : {};
+    const existing = partnerData?.relaySamplesAutoSeededAt;
+
+    // Gate: skip when the partner has been seeded (or explicitly
+    // cleared, which sets the same flag with a 'cleared' sentinel
+    // suffix). Either way, no auto-seed.
+    if (typeof existing === 'string' && existing) {
+      return { success: true, ranSeed: false, seededAt: existing };
+    }
+
+    const seedRes = await seedAllVerticalSchemasAction(partnerId, userId);
+    if (!seedRes.success) {
+      return { success: false, ranSeed: false, error: seedRes.error };
+    }
+
+    const seededAt = new Date().toISOString();
+    await partnerRef.set(
+      {
+        relaySamplesAutoSeededAt: seededAt,
+        updatedAt: seededAt,
+      },
+      { merge: true },
+    );
+
+    return {
+      success: true,
+      ranSeed: true,
+      seededAt,
+      totalItemsCreated: seedRes.totalItemsCreated,
+    };
+  } catch (err: any) {
+    console.error('[partner-relay-data] autoSeedSamplesIfNeededAction failed:', err);
+    return { success: false, ranSeed: false, error: err?.message ?? 'unknown' };
+  }
+}
+
+// ── Vertical-scoped clear (Phase 5) ─────────────────────────────────
+//
+// Wraps clearSeededItemsForModulesAction with the same vertical
+// scope seedAllVerticalSchemasAction uses. Walks the block registry,
+// collects every slug that targets the partner's vertical (or
+// 'shared'), and asks the per-module clear to delete tagged items
+// only — partner-edited rows survive.
+//
+// Also flips the partner doc's auto-seed flag to a 'cleared'
+// sentinel so the next visit doesn't immediately re-seed.
+
+export interface ClearAllVerticalSamplesResult {
+  success: boolean;
+  vertical?: RelayVertical | null;
+  /** Per-module breakdown of deletes. */
+  perModule?: Array<{ moduleSlug: string; deleted: number }>;
+  totalDeleted?: number;
+  error?: string;
+}
+
+export async function clearAllVerticalSamplesAction(
+  partnerId: string,
+): Promise<ClearAllVerticalSamplesResult> {
+  try {
+    if (!adminDb) return { success: false, error: 'Database not available' };
+    if (!partnerId) {
+      return { success: false, error: 'partnerId is required' };
+    }
+
+    const partnerRef = adminDb.collection('partners').doc(partnerId);
+    const partnerSnap = await partnerRef.get();
+    const persona = partnerSnap.exists
+      ? (partnerSnap.data() as any)?.businessPersona
+      : null;
+    const identity = persona?.identity ?? {};
+    const vertical = derivePartnerVertical(identity);
+
+    if (!vertical) {
+      return {
+        success: false,
+        error:
+          "Set your Business Identity (category) in Settings first — without a vertical we don't know which schemas to clear.",
+      };
+    }
+
+    // Same scope as seedAllVerticalSchemasAction: every slug targeted
+    // by a block in the partner's vertical OR shared.
+    const targetSlugs = new Set<string>();
+    for (const block of ALL_BLOCKS_DATA) {
+      if (!block.module) continue;
+      const v = getVerticalForSlug(block.module);
+      if (v === vertical || v === 'shared') {
+        targetSlugs.add(block.module);
+      }
+    }
+
+    const cleared = await clearSeededItemsForModulesAction(
+      partnerId,
+      Array.from(targetSlugs),
+    );
+
+    // Pin the auto-seed flag with a 'cleared' sentinel so the next
+    // visit doesn't immediately re-seed. Format keeps the original
+    // timestamp readable for audit while signalling cleared state.
+    const stamp = new Date().toISOString();
+    await partnerRef.set(
+      {
+        relaySamplesAutoSeededAt: `cleared:${stamp}`,
+        updatedAt: stamp,
+      },
+      { merge: true },
+    );
+
+    return {
+      success: cleared.success,
+      vertical,
+      perModule: cleared.perModule,
+      totalDeleted: cleared.totalDeleted,
+      error: cleared.error,
+    };
+  } catch (err: any) {
+    console.error(
+      '[partner-relay-data] clearAllVerticalSamplesAction failed:',
       err,
     );
     return { success: false, error: err?.message ?? 'unknown' };
