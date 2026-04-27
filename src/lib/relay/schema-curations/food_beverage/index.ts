@@ -16,10 +16,11 @@ import type { CuratedSchema } from '../types';
 // Per-slug imports go here. Example for Step 2:
 //   import menu from './menu';
 import menu from './menu';
+import beverage from './beverage';
 
 const schemas: Record<string, CuratedSchema> = {
   food_beverage_menu: menu,
-  // food_beverage_beverage: beverage,
+  food_beverage_beverage: beverage,
   // food_beverage_booking: booking,
   // food_beverage_marketing: marketing,
   // food_beverage_info: info,
