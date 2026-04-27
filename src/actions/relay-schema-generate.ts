@@ -154,6 +154,12 @@ export interface PerSlugResult {
 
 const DEFAULT_SEED_FIELDS: ReadonlyArray<string> = ['name', 'description', 'image_url'];
 
+// Boilerplate description we emit ourselves (below). Used by the
+// preserve-on-overwrite logic to distinguish admin-authored
+// descriptions from this function's own auto-generated one — admin
+// prose survives a re-run, our boilerplate gets refreshed.
+const AUTO_DESCRIPTION_RE = /^Auto-generated from \d+ Relay block/;
+
 export async function writeRelaySchemaFromBlocks(
   slug: string,
   blocks: ReadonlyArray<ServerBlockData>,
@@ -165,57 +171,157 @@ export async function writeRelaySchemaFromBlocks(
     : annotatedReads;
 
   const schemaFields = buildSchemaFields(fieldNames);
-  const name = humanizeSlug(slug);
+  const autoName = humanizeSlug(slug);
+  const autoDescription = seededFromDefaults
+    ? `Auto-generated from ${blocks.length} Relay block${
+        blocks.length === 1 ? '' : 's'
+      }. Seeded with universal defaults — no reads[] annotated; AI enrichment expands from block descriptions.`
+    : `Auto-generated from ${blocks.length} Relay block${
+        blocks.length === 1 ? '' : 's'
+      }. Field list is the union of block.reads[] across consumers.`;
   const now = new Date().toISOString();
 
-  await adminDb
-    .collection('relaySchemas')
-    .doc(slug)
-    .set(
-      {
-        id: slug,
-        slug,
-        name,
-        description: seededFromDefaults
-          ? `Auto-generated from ${blocks.length} Relay block${
-              blocks.length === 1 ? '' : 's'
-            }. Seeded with universal defaults — no reads[] annotated; AI enrichment expands from block descriptions.`
-          : `Auto-generated from ${blocks.length} Relay block${
-              blocks.length === 1 ? '' : 's'
-            }. Field list is the union of block.reads[] across consumers.`,
-        icon: '📦',
-        color: '#6366f1',
-        currentVersion: 1,
-        schema: {
-          fields: schemaFields,
-          categories: [
-            { id: 'cat_general', name: 'General', icon: '📁', order: 0 },
-          ],
-        },
-        schemaHistory: {},
-        migrations: {},
-        itemLabel: 'Item',
-        itemLabelPlural: 'Items',
-        priceLabel: 'Price',
-        priceType: 'one_time',
-        defaultCurrency: 'USD',
-        settings: { ...DEFAULT_MODULE_SETTINGS },
-        applicableIndustries: [],
-        applicableFunctions: [],
-        status: 'active',
-        usageCount: 0,
-        generatedFromRegistryAt: now,
-        generatedFromBlockCount: blocks.length,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: 'system',
-      },
-      { merge: false },
-    );
+  // ── Preserve admin-curated metadata across re-runs ────────────────
+  //
+  // Earlier this function did `set({...}, { merge: false })` with a
+  // freshly minted shape — wiping every doc-level field admin had set
+  // (Phase 1B's `contentCategory` override, manually edited `name`,
+  // `description`, and the enrichment provenance trail). Re-running
+  // Generate + Enrich silently undid hours of curation work.
+  //
+  // Now we read the existing doc first and carry forward anything
+  // that's clearly admin-authored or system-tracked metadata. The
+  // detection rules:
+  //   - contentCategory: any non-empty string survives (only ever
+  //     written by admin's setRelaySchemaContentCategoryAction or a
+  //     curated-schema apply, never by this function — so presence
+  //     means "preserve")
+  //   - name: keep when it differs from `humanizeSlug(slug)`
+  //     (i.e. admin renamed it)
+  //   - description: keep when it doesn't match our boilerplate
+  //     pattern (i.e. admin authored prose)
+  //   - schemaHistory: never wipe — the version log
+  //   - lastEnrichedAt / lastEnrichedModel / lastEnrichedFieldCount
+  //     / lastEditedAt / createdAt: provenance trail, always carry
+  //
+  // Field list (`schema.fields`) IS overwritten — that's the whole
+  // point of this function. Admin per-field metadata edits made via
+  // SchemaEditor get rebuilt from `block.reads[]` here. Curated-
+  // schema apply is the place to bring richer field data back.
+  const ref = adminDb.collection('relaySchemas').doc(slug);
+  const existingSnap = await ref.get();
+  const existing: Record<string, any> = existingSnap.exists
+    ? (existingSnap.data() ?? {})
+    : {};
+
+  const preservedName =
+    typeof existing.name === 'string' && existing.name && existing.name !== autoName
+      ? existing.name
+      : autoName;
+
+  const preservedDescription =
+    typeof existing.description === 'string' &&
+    existing.description &&
+    !AUTO_DESCRIPTION_RE.test(existing.description)
+      ? existing.description
+      : autoDescription;
+
+  const doc: Record<string, any> = {
+    id: slug,
+    slug,
+    name: preservedName,
+    description: preservedDescription,
+    icon: typeof existing.icon === 'string' && existing.icon ? existing.icon : '📦',
+    color: typeof existing.color === 'string' && existing.color ? existing.color : '#6366f1',
+    currentVersion:
+      typeof existing.currentVersion === 'number' ? existing.currentVersion : 1,
+    schema: {
+      fields: schemaFields,
+      // Categories: keep admin-defined ones if any exist; else default.
+      categories:
+        Array.isArray(existing.schema?.categories) &&
+        existing.schema.categories.length > 0
+          ? existing.schema.categories
+          : [{ id: 'cat_general', name: 'General', icon: '📁', order: 0 }],
+    },
+    schemaHistory:
+      existing.schemaHistory && typeof existing.schemaHistory === 'object'
+        ? existing.schemaHistory
+        : {},
+    migrations:
+      existing.migrations && typeof existing.migrations === 'object'
+        ? existing.migrations
+        : {},
+    itemLabel:
+      typeof existing.itemLabel === 'string' && existing.itemLabel
+        ? existing.itemLabel
+        : 'Item',
+    itemLabelPlural:
+      typeof existing.itemLabelPlural === 'string' && existing.itemLabelPlural
+        ? existing.itemLabelPlural
+        : 'Items',
+    priceLabel:
+      typeof existing.priceLabel === 'string' && existing.priceLabel
+        ? existing.priceLabel
+        : 'Price',
+    priceType:
+      typeof existing.priceType === 'string' && existing.priceType
+        ? existing.priceType
+        : 'one_time',
+    defaultCurrency:
+      typeof existing.defaultCurrency === 'string' && existing.defaultCurrency
+        ? existing.defaultCurrency
+        : 'USD',
+    settings: existing.settings ?? { ...DEFAULT_MODULE_SETTINGS },
+    applicableIndustries: Array.isArray(existing.applicableIndustries)
+      ? existing.applicableIndustries
+      : [],
+    applicableFunctions: Array.isArray(existing.applicableFunctions)
+      ? existing.applicableFunctions
+      : [],
+    status:
+      typeof existing.status === 'string' && existing.status
+        ? existing.status
+        : 'active',
+    usageCount:
+      typeof existing.usageCount === 'number' ? existing.usageCount : 0,
+    generatedFromRegistryAt: now,
+    generatedFromBlockCount: blocks.length,
+    createdAt:
+      typeof existing.createdAt === 'string' && existing.createdAt
+        ? existing.createdAt
+        : now,
+    updatedAt: now,
+    createdBy:
+      typeof existing.createdBy === 'string' && existing.createdBy
+        ? existing.createdBy
+        : 'system',
+  };
+
+  // Conditionally carry forward admin overrides + provenance — only
+  // include keys when the existing doc had them, so the post-merge
+  // shape stays clean.
+  if (typeof existing.contentCategory === 'string' && existing.contentCategory) {
+    doc.contentCategory = existing.contentCategory;
+  }
+  if (typeof existing.lastEnrichedAt === 'string' && existing.lastEnrichedAt) {
+    doc.lastEnrichedAt = existing.lastEnrichedAt;
+  }
+  if (typeof existing.lastEnrichedModel === 'string' && existing.lastEnrichedModel) {
+    doc.lastEnrichedModel = existing.lastEnrichedModel;
+  }
+  if (typeof existing.lastEnrichedFieldCount === 'number') {
+    doc.lastEnrichedFieldCount = existing.lastEnrichedFieldCount;
+  }
+  if (typeof existing.lastEditedAt === 'string' && existing.lastEditedAt) {
+    doc.lastEditedAt = existing.lastEditedAt;
+  }
+
+  await ref.set(doc, { merge: false });
 
   return {
     slug,
-    name,
+    name: preservedName,
     fieldCount: schemaFields.length,
     blockCount: blocks.length,
     seededFromDefaults,
