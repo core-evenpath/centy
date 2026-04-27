@@ -131,10 +131,15 @@ export default function PartnerRelayDataPage() {
             chat. We&apos;ll handle the rest.
           </p>
         </div>
-        {partnerId && (
+        {partnerId && user?.uid && (
           <ClearSampleCTA
             partnerId={partnerId}
+            userId={user.uid}
+            samplesState={state?.samplesState}
             onCleared={() => {
+              listPartnerSchemasAction(partnerId).then(setState);
+            }}
+            onRestored={() => {
               listPartnerSchemasAction(partnerId).then(setState);
             }}
           />

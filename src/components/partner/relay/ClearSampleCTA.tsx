@@ -1,18 +1,21 @@
 'use client';
 
-// ── Clear sample data CTA (Phase 5) ─────────────────────────────────
+// ── Sample-data CTA (Phase 5 + 5b) ──────────────────────────────────
 //
-// Replaces the previous "Generate sample data" affordance on
-// /partner/relay/data. Sample data is now hard-coded — auto-seeded
-// on first visit by `autoSeedSamplesIfNeededAction`, gated by a
-// partner-doc flag so re-runs are no-ops.
+// Two states based on the partner's auto-seed flag:
 //
-// This component renders the partner's only sample-data control:
-// a destructive "Clear sample data" button. Clears tagged
-// (`_seedSource`) items only — partner edits survive.
+//   samplesState === 'active'   → "Clear sample data" (destructive)
+//   samplesState === 'cleared'  → "Restore sample data" (additive)
+//   samplesState === 'never'    → no CTA (auto-seed will run on
+//                                 the next mount and flip state to
+//                                 'active')
+//
+// Marker-based clear preserves partner edits — only items tagged
+// `_seedSource` are removed; items the partner authored or edited
+// stay untouched.
 
 import { useState } from 'react';
-import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, AlertTriangle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,18 +28,36 @@ import {
 } from '@/components/ui/dialog';
 import {
   clearAllVerticalSamplesAction,
+  restoreSamplesAction,
   type ClearAllVerticalSamplesResult,
+  type RestoreSamplesResult,
 } from '@/actions/partner-relay-data';
 
 interface Props {
   partnerId: string;
+  userId: string;
+  /** Current state of the auto-seed flag — drives Clear vs Restore. */
+  samplesState?: 'never' | 'active' | 'cleared';
   /** Notify the page after a successful clear so item counts refresh. */
   onCleared?: (result: ClearAllVerticalSamplesResult) => void;
+  /** Notify the page after a successful restore. */
+  onRestored?: (result: RestoreSamplesResult) => void;
 }
 
-export function ClearSampleCTA({ partnerId, onCleared }: Props) {
+export function ClearSampleCTA({
+  partnerId,
+  userId,
+  samplesState,
+  onCleared,
+  onRestored,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // 'never' state: no button — auto-seed handles initial population.
+  if (samplesState === 'never') return null;
+
+  const isCleared = samplesState === 'cleared';
 
   const handleClear = async () => {
     setBusy(true);
@@ -63,6 +84,57 @@ export function ClearSampleCTA({ partnerId, onCleared }: Props) {
     }
   };
 
+  const handleRestore = async () => {
+    setBusy(true);
+    try {
+      const res = await restoreSamplesAction(partnerId, userId);
+      if (!res.success) {
+        toast.error(res.error || 'Could not restore sample data');
+        return;
+      }
+      const created = res.totalItemsCreated ?? 0;
+      const kept = res.schemasAlreadyHadItems ?? 0;
+      if (created > 0) {
+        toast.success(
+          `Restored ${created} sample item${created === 1 ? '' : 's'}.${
+            kept > 0 ? ` ${kept} schema${kept === 1 ? '' : 's'} already had data.` : ''
+          }`,
+        );
+      } else if (kept > 0) {
+        toast.message(`All ${kept} schemas already have data.`);
+      } else {
+        toast.message('Nothing to restore.');
+      }
+      onRestored?.(res);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not restore sample data');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Restore (when cleared) ───────────────────────────────────────
+  if (isCleared) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRestore}
+        disabled={busy}
+        className="text-xs h-8 gap-1.5"
+        title="Bring back the auto-seeded sample items. Your edits stay."
+      >
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" />
+        )}
+        {busy ? 'Restoring…' : 'Restore sample data'}
+      </Button>
+    );
+  }
+
+  // ── Clear (when active) ──────────────────────────────────────────
   return (
     <>
       <Button
@@ -93,16 +165,16 @@ export function ClearSampleCTA({ partnerId, onCleared }: Props) {
                 <ul className="list-disc list-inside space-y-1 text-xs text-muted-foreground">
                   <li>
                     <strong className="text-foreground">Removes</strong>:
-                    auto-seeded sample items (e.g. Margherita Pizza, Aperol
-                    Spritz, Window Table for 2).
+                    auto-seeded sample items (Margherita Pizza, Aperol Spritz,
+                    Window table, etc.).
                   </li>
                   <li>
                     <strong className="text-foreground">Keeps</strong>: items
                     you’ve added or edited yourself.
                   </li>
                   <li>
-                    Sample data won’t come back automatically. You can add new
-                    items via <em>Add item</em> on each tile.
+                    You can bring samples back any time with{' '}
+                    <em>Restore sample data</em>.
                   </li>
                 </ul>
               </div>
@@ -116,11 +188,7 @@ export function ClearSampleCTA({ partnerId, onCleared }: Props) {
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleClear}
-              disabled={busy}
-            >
+            <Button variant="destructive" onClick={handleClear} disabled={busy}>
               {busy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
