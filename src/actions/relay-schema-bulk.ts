@@ -1,30 +1,30 @@
 'use server';
 
-// ── Bulk per-vertical generate + enrich (PR-fix-1) ──────────────────
+// ── Bulk per-vertical Generate + Apply Curated (Step 1) ─────────────
 //
-// Consolidates the two-step bootstrap workflow ("Generate from block
-// registry" → 153 thin schemas, then "Suggest richer fields" 153×)
-// into one click per vertical:
+// One-click bootstrap. For every schema in the chosen vertical:
 //
-//   pickVertical → click Run → for each schema in that vertical:
-//     1. write the deterministic seed (PR E7/E8 union-of-reads)
-//     2. ask Gemini for additional industry-standard fields
-//     3. auto-append all suggestions (no per-field diff review)
+//   1. If the slug has a curation in src/lib/relay/schema-curations,
+//      apply it — the curation is the source of truth for fields,
+//      contentCategory hint, name hint, etc.
+//   2. Else fall back to the deterministic block.reads[] union seed
+//      via writeRelaySchemaFromBlocks (Step 0 hardened it to preserve
+//      admin-set metadata).
 //
-// Auto-accept is intentional: bulk runs are for the rapid bootstrap,
-// not curation. Admin can still drill into individual schemas via
-// the per-schema viewer + "Suggest richer fields" button (PR E9) to
-// refine afterwards.
+// Replaces the previous Gemini enrichment step. Curated apply is
+// deterministic, reviewable in PRs, and produces the comprehensive
+// field lists Gemini failed to deliver consistently. Slugs without a
+// curation still get a usable seed — never broken, just less rich
+// until a curation is authored.
 //
-// Per-vertical scope keeps each click ~30-90s (3-12 schemas × Gemini
-// latency), well inside server-action timeouts.
+// The Gemini path (relay-schema-enrich.ts) is intentionally left in
+// place but no longer wired into the bulk flow. It can be repurposed
+// as an opt-in "AI suggest" affordance later if needed.
 
 import { ALL_BLOCKS_DATA, type ServerBlockData } from '@/app/admin/relay/blocks/previews/_registry-data';
 import { writeRelaySchemaFromBlocks } from '@/actions/relay-schema-generate';
-import {
-  enrichRelaySchemaAction,
-  appendFieldsToRelaySchemaAction,
-} from '@/actions/relay-schema-enrich';
+import { applyCuratedSchemaAction } from '@/actions/relay-schema-apply-curated';
+import { getCuratedSchemaForSlug } from '@/lib/relay/schema-curations';
 import {
   getVerticalForSlug,
   type RelayVertical,
@@ -36,15 +36,22 @@ export interface VerticalEnrichResult {
   vertical: RelayVertical;
   schemas: Array<{
     slug: string;
-    deterministicFields: number;
-    aiFields: number;
+    /** Where the field list came from for this slug. */
+    source: 'curated' | 'deterministic';
+    /** Total fields written to schema.fields. */
+    fieldCount: number;
     /**
-     * True when consumer blocks had no reads[] annotated and the
-     * deterministic seed used universal defaults
-     * (name / description / image_url). These schemas leaned the
-     * most on AI enrichment for their final shape.
+     * Deterministic-path only: true when consumer blocks had no
+     * reads[] annotated and the seed fell back to universal defaults
+     * (name / description / image_url). Hint that this slug needs a
+     * curation.
      */
     seededFromDefaults?: boolean;
+    /**
+     * Curated-path only: true when admin had set contentCategory
+     * and/or name and the apply preserved those over the curation.
+     */
+    preservedAdminMetadata?: boolean;
     error?: string;
   }>;
   error?: string;
@@ -69,40 +76,35 @@ export async function generateAndEnrichVerticalAction(
     }
 
     for (const [slug, blocks] of blocksBySlug) {
-      // 1. Deterministic seed — overwrites the schema. Idempotent.
-      // Always succeeds: if no consumer blocks have reads[] annotated,
-      // the helper falls back to universal defaults (PR-fix-5) so the
-      // schema doc always exists for AI enrichment to attach to.
-      const seed = await writeRelaySchemaFromBlocks(slug, blocks);
+      const curated = getCuratedSchemaForSlug(slug);
 
-      // 2. Ask Gemini for additional fields. Failures don't abort
-      // the whole vertical — record per-schema error and move on.
-      const enriched = await enrichRelaySchemaAction(slug);
-      if (!enriched.success) {
+      if (curated) {
+        // ── Curated path ─────────────────────────────────────────
+        // Apply lands the canonical fields verbatim. Admin overrides
+        // for contentCategory / name / description survive.
+        const applied = await applyCuratedSchemaAction(slug);
         schemas.push({
           slug,
-          deterministicFields: seed.fieldCount,
-          aiFields: 0,
-          seededFromDefaults: seed.seededFromDefaults,
-          error: enriched.error,
+          source: 'curated',
+          fieldCount: applied.appliedFieldCount ?? 0,
+          preservedAdminMetadata:
+            !!applied.preservedContentCategory ||
+            !!applied.preservedName ||
+            !!applied.preservedDescription,
+          error: applied.success ? undefined : applied.error,
         });
         continue;
       }
 
-      // 3. Auto-accept all suggestions. Bulk = bulk; no diff modal.
-      let aiFields = 0;
-      if (enriched.suggestions.length > 0) {
-        const appended = await appendFieldsToRelaySchemaAction(
-          slug,
-          enriched.suggestions,
-        );
-        aiFields = appended.success ? appended.appended : 0;
-      }
-
+      // ── Deterministic fallback ─────────────────────────────────
+      // No curation yet for this slug. Use the block.reads[] union
+      // seed; Step 0 ensured this preserves admin-set metadata so
+      // re-runs are safe.
+      const seed = await writeRelaySchemaFromBlocks(slug, blocks);
       schemas.push({
         slug,
-        deterministicFields: seed.fieldCount,
-        aiFields,
+        source: 'deterministic',
+        fieldCount: seed.fieldCount,
         seededFromDefaults: seed.seededFromDefaults,
       });
     }
