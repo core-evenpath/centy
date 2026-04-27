@@ -76,6 +76,16 @@ export interface PartnerSchemasResult {
   partnerCurrency?: string;
   partnerCountry?: string;
   partnerCategoryLabel?: string;
+  /**
+   * State of the auto-seed flag on the partner doc. Drives the Clear
+   * vs Restore CTA on /partner/relay/data.
+   *   - 'never'   the flag has never been set; auto-seed will run on
+   *               next visit
+   *   - 'active'  samples were auto-seeded and not yet cleared
+   *   - 'cleared' partner clicked Clear sample data; Restore button
+   *               should be shown to bring them back
+   */
+  samplesState?: 'never' | 'active' | 'cleared';
   error?: string;
 }
 
@@ -215,6 +225,16 @@ export async function listPartnerSchemasAction(
         : undefined;
     const partnerCategoryLabel = deriveCategoryLabel(identity);
 
+    // Auto-seed flag state — drives the Clear / Restore CTA on
+    // /partner/relay/data. Cleared sentinel format is `cleared:<ISO>`.
+    const rawSamplesFlag = partnerDoc.exists
+      ? (partnerDoc.data() as any)?.relaySamplesAutoSeededAt
+      : undefined;
+    let samplesState: PartnerSchemasResult['samplesState'] = 'never';
+    if (typeof rawSamplesFlag === 'string' && rawSamplesFlag) {
+      samplesState = rawSamplesFlag.startsWith('cleared:') ? 'cleared' : 'active';
+    }
+
     // ── All schemas + partner module item counts in parallel ──
     const [schemasSnap, modulesSnap] = await Promise.all([
       adminDb.collection('relaySchemas').get(),
@@ -350,6 +370,7 @@ export async function listPartnerSchemasAction(
       partnerCurrency,
       partnerCountry,
       partnerCategoryLabel,
+      samplesState,
     };
   } catch (err: any) {
     console.error('[partner-relay-data] listPartnerSchemasAction failed:', err);
@@ -605,6 +626,68 @@ export async function autoSeedSamplesIfNeededAction(
   } catch (err: any) {
     console.error('[partner-relay-data] autoSeedSamplesIfNeededAction failed:', err);
     return { success: false, ranSeed: false, error: err?.message ?? 'unknown' };
+  }
+}
+
+// ── Restore samples (Phase 5b) ──────────────────────────────────────
+//
+// Brings sample data back after the partner clicked Clear. Always
+// runs the seed regardless of the flag state — this is a deliberate
+// user action, not the silent auto-seed. After seeding it resets
+// the flag to a fresh ISO timestamp so subsequent visits see
+// `samplesState: 'active'` and the page renders the Clear button
+// instead of Restore.
+//
+// Existing partner edits + already-curated tiles survive: the
+// underlying seedSampleItemsAction uses skipIfItemsExist for each
+// per-schema seed. Schemas that still have items (e.g. partner-
+// edited rows from before the clear) are left alone; empty schemas
+// get re-seeded.
+
+export interface RestoreSamplesResult {
+  success: boolean;
+  totalItemsCreated?: number;
+  schemasSeeded?: number;
+  schemasAlreadyHadItems?: number;
+  seededAt?: string;
+  error?: string;
+}
+
+export async function restoreSamplesAction(
+  partnerId: string,
+  userId: string,
+): Promise<RestoreSamplesResult> {
+  try {
+    if (!adminDb) return { success: false, error: 'Database not available' };
+    if (!partnerId) return { success: false, error: 'partnerId is required' };
+
+    const seedRes = await seedAllVerticalSchemasAction(partnerId, userId);
+    if (!seedRes.success) {
+      return { success: false, error: seedRes.error };
+    }
+
+    const seededAt = new Date().toISOString();
+    await adminDb
+      .collection('partners')
+      .doc(partnerId)
+      .set(
+        {
+          relaySamplesAutoSeededAt: seededAt,
+          updatedAt: seededAt,
+        },
+        { merge: true },
+      );
+
+    return {
+      success: true,
+      totalItemsCreated: seedRes.totalItemsCreated,
+      schemasSeeded: seedRes.schemasSeeded,
+      schemasAlreadyHadItems: seedRes.schemasAlreadyHadItems,
+      seededAt,
+    };
+  } catch (err: any) {
+    console.error('[partner-relay-data] restoreSamplesAction failed:', err);
+    return { success: false, error: err?.message ?? 'unknown' };
   }
 }
 
