@@ -59,6 +59,7 @@ function buildMinimalSampleItems(slug: string): SampleItem[] {
         price: [19.99, 29.99, 39.99][i - 1] ?? 19.99,
         currency: 'USD',
         isActive: true,
+        _seedSource: 'minimal',
     }));
 }
 
@@ -108,6 +109,7 @@ async function deriveSampleItemsFromSchema(
                 name: `${itemNamePrefix} ${i}`,
                 description: `Auto-generated sample for previewing ${slug}.`,
                 isActive: true,
+                _seedSource: 'generator',
             };
             const customFieldValues: Record<string, any> = {};
 
@@ -238,6 +240,7 @@ function fixtureToSampleItem(f: FixtureItem): SampleItem {
         name: f.name,
         description: f.description,
         isActive: f.isActive ?? true,
+        _seedSource: 'fixture',
     };
     if (typeof f.category === 'string') item.category = f.category;
     if (typeof f.price === 'number') item.price = f.price;
@@ -518,4 +521,95 @@ export async function ensureRequiredModulesEnabledAction(
         }
     }
     return { success: true, enabledSlugs };
+}
+
+// ── Marker-based clear (Phase 5) ─────────────────────────────────────
+//
+// Deletes only items written by the auto-seeders. Identified by the
+// `_seedSource` marker the sample-data flows tag at write time
+// (fixture / generator / minimal). Partner-edited items don't have
+// the marker → they survive untouched.
+//
+// Used by the partner-side "Clear sample data" button on
+// /partner/relay/data. Idempotent — safe to call repeatedly; no-op
+// when there's nothing tagged.
+
+export interface ClearSeededItemsResult {
+    success: boolean;
+    /** Module slug → number of items deleted by marker. */
+    perModule: Array<{ moduleSlug: string; deleted: number }>;
+    /** Total tagged items removed across all modules. */
+    totalDeleted: number;
+    error?: string;
+}
+
+export async function clearSeededItemsForModulesAction(
+    partnerId: string,
+    moduleSlugs: string[],
+): Promise<ClearSeededItemsResult> {
+    try {
+        if (!partnerId) {
+            return {
+                success: false,
+                perModule: [],
+                totalDeleted: 0,
+                error: 'partnerId required',
+            };
+        }
+        const seen = new Set<string>();
+        const perModule: ClearSeededItemsResult['perModule'] = [];
+        let totalDeleted = 0;
+
+        for (const slug of moduleSlugs) {
+            if (!slug || seen.has(slug)) continue;
+            seen.add(slug);
+
+            const pm = await getPartnerModuleAction(partnerId, slug);
+            if (!pm.success || !pm.data) {
+                // Module never enabled → nothing to clear, skip.
+                continue;
+            }
+            const moduleId = pm.data.partnerModule.id;
+
+            // Page through up to 200 items per module — well above any
+            // realistic seed count. `_seedSource` filter narrows to
+            // tagged items only.
+            const items = await getModuleItemsAction(partnerId, moduleId, {
+                pageSize: 200,
+            });
+            if (!items.success || !items.data) continue;
+
+            const tagged = items.data.items.filter(
+                (it) =>
+                    typeof (it as { _seedSource?: unknown })._seedSource === 'string',
+            );
+            let deleted = 0;
+            for (const it of tagged) {
+                try {
+                    const del = await deleteModuleItemAction(
+                        partnerId,
+                        moduleId,
+                        it.id,
+                    );
+                    if (del.success) deleted++;
+                } catch {
+                    // non-fatal — partial delete still valuable
+                }
+            }
+            if (deleted > 0) {
+                perModule.push({ moduleSlug: slug, deleted });
+                totalDeleted += deleted;
+            }
+        }
+
+        return { success: true, perModule, totalDeleted };
+    } catch (err: any) {
+        console.error('[sample-data] clearSeededItemsForModulesAction failed:', err);
+        return {
+            success: false,
+            perModule: [],
+            totalDeleted: 0,
+            error: err?.message ?? 'unknown',
+        };
+    }
 }

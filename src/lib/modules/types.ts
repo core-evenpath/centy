@@ -256,6 +256,14 @@ export interface ModuleItem {
 
     _schemaVersion: number;
     _legacyFields?: Record<string, any>;
+    /**
+     * Marks how this item was seeded. Set by sample-data actions
+     * (fixture / generator / minimal). Absent for partner-authored
+     * items created via ItemEditor / Import / API. Used by the
+     * "Clear sample data" flow on /partner/relay/data to delete
+     * only auto-seeded items, preserving partner edits.
+     */
+    _seedSource?: 'fixture' | 'generator' | 'minimal';
 
     ragText?: string;
     ragKeywords?: string[];

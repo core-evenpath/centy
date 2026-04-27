@@ -1508,6 +1508,12 @@ export async function bulkCreateModuleItemsAction(
                     moduleId,
                     partnerId,
                     _schemaVersion: partnerModule.schemaVersion,
+                    // Pass through the auto-seed marker when present —
+                    // sample-data flows tag items so "Clear sample data"
+                    // can delete them without touching partner edits.
+                    ...(itemData._seedSource
+                        ? { _seedSource: itemData._seedSource }
+                        : {}),
                     ragText,
                     ragUpdatedAt: now,
                     createdAt: now,

@@ -37,6 +37,7 @@ import {
 import { useMultiWorkspaceAuth } from '@/hooks/use-multi-workspace-auth';
 import {
   listPartnerSchemasAction,
+  autoSeedSamplesIfNeededAction,
   type PartnerSchemaCard,
   type PartnerSchemasResult,
 } from '@/actions/partner-relay-data';
@@ -46,7 +47,7 @@ import {
   orderedCategories,
   type ContentCategory,
 } from '@/lib/relay/content-categories';
-import { TestChatSeedSampleCTA } from '../test-chat/_TestChatSeedSampleCTA';
+import { ClearSampleCTA } from '@/components/partner/relay/ClearSampleCTA';
 import { BlockOverridesDrawer } from '@/components/partner/relay/BlockOverridesDrawer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -82,11 +83,22 @@ export default function PartnerRelayDataPage() {
       setLoading(false);
       return;
     }
+    if (!user?.uid) {
+      // Wait for auth — without uid we can't run the auto-seed.
+      return;
+    }
     setLoading(true);
-    Promise.all([
-      listPartnerSchemasAction(partnerId),
-      loadPartnerDisabledBlocksAction(partnerId),
-    ])
+    // Auto-seed once per partner, then list. The seed is gated by
+    // `relaySamplesAutoSeededAt` on the partner doc, so this is a
+    // no-op on every visit after the first AND after the partner
+    // has clicked "Clear sample data".
+    autoSeedSamplesIfNeededAction(partnerId, user.uid)
+      .then(() =>
+        Promise.all([
+          listPartnerSchemasAction(partnerId),
+          loadPartnerDisabledBlocksAction(partnerId),
+        ]),
+      )
       .then(([schemasRes, overridesRes]) => {
         setState(schemasRes);
         if (overridesRes.success) {
@@ -94,7 +106,7 @@ export default function PartnerRelayDataPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, [partnerId]);
+  }, [partnerId, user?.uid]);
 
   // Show only schemas in the partner's vertical (or shared). Other
   // verticals' schemas are irrelevant noise — admin layer keeps them
@@ -119,11 +131,10 @@ export default function PartnerRelayDataPage() {
             chat. We&apos;ll handle the rest.
           </p>
         </div>
-        {partnerId && user?.uid && (
-          <TestChatSeedSampleCTA
+        {partnerId && (
+          <ClearSampleCTA
             partnerId={partnerId}
-            userId={user.uid}
-            onSeeded={() => {
+            onCleared={() => {
               listPartnerSchemasAction(partnerId).then(setState);
             }}
           />
