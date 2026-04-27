@@ -22,6 +22,7 @@ import marketing from './marketing';
 import info from './info';
 import people from './people';
 import socialProof from './social-proof';
+import events from './events';
 
 const schemas: Record<string, CuratedSchema> = {
   food_beverage_menu: menu,
@@ -31,7 +32,7 @@ const schemas: Record<string, CuratedSchema> = {
   food_beverage_info: info,
   food_beverage_people: people,
   food_beverage_social_proof: socialProof,
-  // food_beverage_events: events,
+  food_beverage_events: events,
   // food_beverage_preferences: preferences,
   // food_beverage_operations: operations,
   // food_beverage_ordering: ordering,
